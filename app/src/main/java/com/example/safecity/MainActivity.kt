@@ -61,19 +61,10 @@ class MainActivity : ComponentActivity() {
                                 popUpTo(Routes.Register) { inclusive = true }
                             }
                         },
-                        onGoPhoneRegister = { nav.navigate(Routes.PhoneAuth) }
+
                     )
                 }
-                composable(Routes.PhoneAuth) {
-                    PhoneAuthScreen(
-                        onBack = { nav.popBackStack() },
-                        onSuccess = {
-                            nav.navigate(Routes.Home) {
-                                popUpTo(Routes.Register) { inclusive = true }
-                            }
-                        }
-                    )
-                }
+
 
                 composable(Routes.Home) {
                     HomeScreen(

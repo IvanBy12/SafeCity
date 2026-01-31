@@ -7,10 +7,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,21 +21,21 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.UserProfileChangeRequest
 
 @Composable
 fun RegisterScreen(
     onGoLogin: () -> Unit,
-    onRegistered: () -> Unit,
-    onGoPhoneRegister: () -> Unit
+    onRegistered: () -> Unit
 ) {
     val context = LocalContext.current
     val auth = remember { FirebaseAuth.getInstance() }
 
+    var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
     var passVisible by remember { mutableStateOf(false) }
@@ -47,26 +47,35 @@ fun RegisterScreen(
     val googleLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        // No pongas loading=false antes del try si quieres consistencia
+        loading = false
+        error = null
+
         try {
             val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
             val account = task.getResult(ApiException::class.java)
 
-            // Aquí seguimos con Firebase
-            signInWithGoogleToFirebase(
-                account = account,
-                auth = auth,
-                onError = { msg ->
+            val idToken = account.idToken
+            if (idToken.isNullOrBlank()) {
+                error = "No se obtuvo idToken. Revisa default_web_client_id y SHA-1 en Firebase."
+                return@rememberLauncherForActivityResult
+            }
+
+            loading = true
+            val credential = GoogleAuthProvider.getCredential(idToken, null)
+            auth.signInWithCredential(credential)
+                .addOnCompleteListener { t ->
                     loading = false
-                    error = msg
-                },
-                onSuccess = {
-                    loading = false
-                    onRegistered()
+                    if (t.isSuccessful) {
+                        // ✅ Entra directo
+                        onRegistered()
+                    } else {
+                        error = t.exception?.message ?: "Error autenticando con Google"
+                    }
                 }
-            )
+        } catch (e: ApiException) {
+            // Muy típico: 10 = DEVELOPER_ERROR (SHA1 / json)
+            error = "Google Sign-In error: ${e.statusCode}"
         } catch (e: Exception) {
-            loading = false
             error = e.message ?: "Error con Google Sign-In"
         }
     }
@@ -78,7 +87,7 @@ fun RegisterScreen(
         val clientId = getDefaultWebClientId(context)
         if (clientId.isBlank()) {
             loading = false
-            error = "No se encontró default_web_client_id. Revisa google-services.json y SHA-1 en Firebase."
+            error = "No se encontró default_web_client_id. Revisa google-services.json."
             return
         }
 
@@ -88,11 +97,10 @@ fun RegisterScreen(
             .build()
 
         val client = GoogleSignIn.getClient(context, gso)
-        client.signOut() // opcional: fuerza escoger cuenta
+        client.signOut() // fuerza elegir cuenta siempre (opcional)
         googleLauncher.launch(client.signInIntent)
     }
 
-    // ---------- UI ----------
     val gradient = Brush.verticalGradient(
         colors = listOf(
             MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
@@ -110,13 +118,8 @@ fun RegisterScreen(
             contentAlignment = Alignment.Center
         ) {
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 420.dp),
+                modifier = Modifier.fillMaxWidth().widthIn(max = 440.dp),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
             ) {
                 Column(
@@ -133,20 +136,16 @@ fun RegisterScreen(
                             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.Person,
+                                imageVector = Icons.Filled.PersonAdd,
                                 contentDescription = null,
                                 modifier = Modifier.padding(12.dp),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
-
                         Column {
+                            Text("Crear cuenta", style = MaterialTheme.typography.headlineSmall)
                             Text(
-                                text = "Crear cuenta",
-                                style = MaterialTheme.typography.headlineSmall
-                            )
-                            Text(
-                                text = "Regístrate para reportar incidencias en SafeCity",
+                                "Regístrate para usar SafeCity",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -154,6 +153,39 @@ fun RegisterScreen(
                     }
 
                     Divider()
+
+                    // Google primero (entra directo)
+                    OutlinedButton(
+                        onClick = { startGoogleSignIn() },
+                        enabled = !loading,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        if (loading) {
+                            CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text("Conectando...")
+                        } else {
+                            Text("Continuar con Google")
+                        }
+                    }
+
+                    // Divider "o"
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Divider(modifier = Modifier.weight(1f))
+                        Text("  o  ", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Divider(modifier = Modifier.weight(1f))
+                    }
+
+                    // Nombre
+                    OutlinedTextField(
+                        value = fullName,
+                        onValueChange = { fullName = it; error = null },
+                        label = { Text("Nombre completo") },
+                        leadingIcon = { Icon(Icons.Filled.Badge, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
                     // Email
                     OutlinedTextField(
@@ -181,34 +213,46 @@ fun RegisterScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // Error
                     if (!error.isNullOrBlank()) {
-                        Text(
-                            text = error!!,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Text(error!!, color = MaterialTheme.colorScheme.error)
                     }
 
-                    // Email/Pass Register Button (FirebaseAuth directo)
+                    // Registrar manual
                     Button(
                         onClick = {
                             error = null
-
+                            val n = fullName.trim()
                             val e = email.trim()
                             val p = pass
 
+                            if (n.length < 3) { error = "Ingresa tu nombre completo"; return@Button }
                             if (e.isBlank()) { error = "Ingresa tu correo"; return@Button }
                             if (p.length < 6) { error = "La contraseña debe tener mínimo 6 caracteres"; return@Button }
 
                             loading = true
                             auth.createUserWithEmailAndPassword(e, p)
                                 .addOnCompleteListener { task ->
-                                    loading = false
-                                    if (task.isSuccessful) {
-                                        onRegistered()
-                                    } else {
+                                    if (!task.isSuccessful) {
+                                        loading = false
                                         error = task.exception?.message ?: "Error registrando"
+                                        return@addOnCompleteListener
+                                    }
+
+                                    val user = auth.currentUser
+                                    if (user == null) {
+                                        loading = false
+                                        error = "No se encontró usuario"
+                                        return@addOnCompleteListener
+                                    }
+
+                                    // ✅ Guardar nombre en el perfil (displayName)
+                                    user.updateProfile(
+                                        UserProfileChangeRequest.Builder()
+                                            .setDisplayName(n)
+                                            .build()
+                                    ).addOnCompleteListener {
+                                        loading = false
+                                        onRegistered()
                                     }
                                 }
                         },
@@ -217,10 +261,7 @@ fun RegisterScreen(
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         if (loading) {
-                            CircularProgressIndicator(
-                                strokeWidth = 2.dp,
-                                modifier = Modifier.size(18.dp)
-                            )
+                            CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(10.dp))
                             Text("Creando cuenta...")
                         } else {
@@ -228,73 +269,13 @@ fun RegisterScreen(
                         }
                     }
 
-                    // Divider "o"
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Divider(modifier = Modifier.weight(1f))
-                        Text(
-                            "  o  ",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                        Divider(modifier = Modifier.weight(1f))
-                    }
-
-                    // Google Button
-                    OutlinedButton(
-                        onClick = { startGoogleSignIn() },
-                        enabled = !loading,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Text("Continuar con Google")
-                    }
-
-                    // Phone Button
-                    OutlinedButton(
-                        onClick = onGoPhoneRegister,
-                        enabled = !loading,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Icon(Icons.Filled.Phone, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Registrarme con teléfono")
-                    }
-
-                    // Go Login
-                    TextButton(
-                        onClick = onGoLogin,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+                    TextButton(onClick = onGoLogin, modifier = Modifier.fillMaxWidth()) {
                         Text("Ya tengo cuenta → Volver al login")
                     }
                 }
             }
         }
     }
-}
-
-private fun signInWithGoogleToFirebase(
-    account: GoogleSignInAccount,
-    auth: FirebaseAuth,
-    onError: (String) -> Unit,
-    onSuccess: () -> Unit
-) {
-    val idToken = account.idToken
-    if (idToken.isNullOrBlank()) {
-        onError("No se obtuvo idToken. Revisa default_web_client_id y SHA-1 en Firebase.")
-        return
-    }
-
-    val credential = GoogleAuthProvider.getCredential(idToken, null)
-    auth.signInWithCredential(credential)
-        .addOnCompleteListener { task ->
-            if (task.isSuccessful) onSuccess()
-            else onError(task.exception?.message ?: "Error autenticando con Google")
-        }
 }
 
 private fun getDefaultWebClientId(context: Context): String {
