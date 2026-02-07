@@ -26,6 +26,9 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import kotlinx.coroutines.launch
+
+
 
 @Composable
 fun LoginScreen(
@@ -36,6 +39,7 @@ fun LoginScreen(
     val ui by vm.ui.collectAsState()
     val context = LocalContext.current
     val auth = remember { FirebaseAuth.getInstance() }
+    val scope = rememberCoroutineScope()
 
     var email by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
@@ -74,7 +78,10 @@ fun LoginScreen(
                 .addOnCompleteListener { t ->
                     googleLoading = false
                     if (t.isSuccessful) {
-                        onLoggedIn()
+                        scope.launch {
+                            com.example.safecity.network.TokenStore.refresh(forceRefresh = true)
+                            onLoggedIn()
+                        }
                     } else {
                         localErr = t.exception?.message ?: "Error autenticando con Google"
                     }

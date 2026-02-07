@@ -18,5 +18,6 @@ object ApiClient {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(SafeCityApi::class.java)
+
     }
 }

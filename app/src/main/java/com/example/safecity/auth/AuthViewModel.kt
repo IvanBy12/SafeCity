@@ -27,11 +27,14 @@ class AuthViewModel(
         viewModelScope.launch {
             _ui.value = AuthUiState(loading = true)
             try {
-                repo.login(email, password)
+                repo.login(email, password)   // aquí ya refresca el token
                 _ui.value = AuthUiState()
                 onSuccess()
             } catch (e: Exception) {
-                _ui.value = AuthUiState(error = e.message ?: "Error iniciando sesión")
+                _ui.value = AuthUiState(
+                    loading = false,
+                    error = e.message ?: "Error iniciando sesión"
+                )
             }
         }
     }
@@ -40,11 +43,14 @@ class AuthViewModel(
         viewModelScope.launch {
             _ui.value = AuthUiState(loading = true)
             try {
-                repo.register(email, password)
+                repo.register(email, password) // aquí ya refresca el token
                 _ui.value = AuthUiState()
                 onSuccess()
             } catch (e: Exception) {
-                _ui.value = AuthUiState(error = e.message ?: "Error registrando")
+                _ui.value = AuthUiState(
+                    loading = false,
+                    error = e.message ?: "Error registrando"
+                )
             }
         }
     }

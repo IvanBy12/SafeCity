@@ -1,5 +1,6 @@
 package com.example.safecity.auth
 
+import com.example.safecity.network.TokenStore
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.tasks.await
 
@@ -10,13 +11,16 @@ class AuthRepository(
 
     suspend fun login(email: String, password: String) {
         auth.signInWithEmailAndPassword(email.trim(), password).await()
+        TokenStore.refresh(forceRefresh = true)   // 🔥 clave
     }
 
     suspend fun register(email: String, password: String) {
         auth.createUserWithEmailAndPassword(email.trim(), password).await()
+        TokenStore.refresh(forceRefresh = true)   // 🔥 clave
     }
 
     fun logout() {
         auth.signOut()
+        TokenStore.clear()
     }
 }
