@@ -90,11 +90,31 @@ fun DashboardScreen(
         showBottomSheet = uiState.selectedIncident != null
     }
 
+    // Estado del menú desplegable de filtros
+    var filtersExpanded by remember { mutableStateOf(false) }
+
+    // Texto del botón según filtros activos
+    val activeFilterLabel = remember(uiState.filterType, uiState.showVerifiedOnly) {
+        val parts = mutableListOf<String>()
+        when (uiState.filterType) {
+            IncidentType.SEGURIDAD -> parts.add("Seguridad")
+            IncidentType.INFRAESTRUCTURA -> parts.add("Infraestructura")
+            null -> {}
+        }
+        if (uiState.showVerifiedOnly) parts.add("Verificados")
+        if (parts.isEmpty()) "Filtros" else parts.joinToString(", ")
+    }
+
+    val hasActiveFilters = uiState.filterType != null || uiState.showVerifiedOnly
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("SafeCity Dashboard") },
                 actions = {
+                    IconButton(onClick = onNavigateToProfile) {
+                        Icon(Icons.Filled.Person, "Perfil")
+                    }
                     IconButton(onClick = onLogout) {
                         Icon(Icons.Filled.Logout, "Cerrar sesión")
                     }
@@ -106,7 +126,6 @@ fun DashboardScreen(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Botón "Mi ubicación"
                 if (uiState.userLocation != null) {
                     SmallFloatingActionButton(
                         onClick = {
@@ -123,10 +142,7 @@ fun DashboardScreen(
                     }
                 }
 
-                // FAB crear reporte
-                FloatingActionButton(
-                    onClick = { /* TODO: Navegar a CreateIncidentScreen */ }
-                ) {
+                FloatingActionButton(onClick = onNavigateToCreateIncident) {
                     Icon(Icons.Filled.Add, "Nuevo reporte")
                 }
             }
@@ -137,26 +153,17 @@ fun DashboardScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-
-            // ==========================================
-            // VERIFICAR PERMISOS
-            // ==========================================
-
             when {
-                // ✅ PERMISOS CONCEDIDOS → Mostrar mapa
                 locationPermissions.allPermissionsGranted -> {
                     GoogleMap(
                         modifier = Modifier.fillMaxSize(),
                         cameraPositionState = cameraPositionState,
-                        properties = MapProperties(
-                            isMyLocationEnabled = true
-                        ),
+                        properties = MapProperties(isMyLocationEnabled = true),
                         uiSettings = MapUiSettings(
                             zoomControlsEnabled = false,
                             myLocationButtonEnabled = false
                         )
                     ) {
-                        // Marcadores de incidentes
                         uiState.filteredIncidents.forEach { incident ->
                             Marker(
                                 state = MarkerState(
@@ -181,53 +188,118 @@ fun DashboardScreen(
                         }
                     }
 
-                    // Filtros flotantes
-                    Column(
+                    // ========================================
+                    // BOTÓN DESPLEGABLE DE FILTROS
+                    // ========================================
+                    Box(
                         modifier = Modifier
                             .align(Alignment.TopStart)
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                            .padding(12.dp)
                     ) {
-                        FilterChip(
-                            selected = uiState.filterType == IncidentType.SEGURIDAD,
-                            onClick = {
-                                viewModel.filterByType(
-                                    if (uiState.filterType == IncidentType.SEGURIDAD) null
-                                    else IncidentType.SEGURIDAD
+                        // Botón principal
+                        ElevatedFilterChip(
+                            selected = hasActiveFilters,
+                            onClick = { filtersExpanded = !filtersExpanded },
+                            label = { Text(activeFilterLabel) },
+                            leadingIcon = {
+                                Icon(
+                                    if (hasActiveFilters) Icons.Filled.FilterAlt
+                                    else Icons.Filled.FilterList,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             },
-                            label = { Text("🚨 Seguridad") },
-                            leadingIcon = if (uiState.filterType == IncidentType.SEGURIDAD) {
-                                { Icon(Icons.Filled.Check, null, Modifier.size(18.dp)) }
-                            } else null
-                        )
-
-                        FilterChip(
-                            selected = uiState.filterType == IncidentType.INFRAESTRUCTURA,
-                            onClick = {
-                                viewModel.filterByType(
-                                    if (uiState.filterType == IncidentType.INFRAESTRUCTURA) null
-                                    else IncidentType.INFRAESTRUCTURA
+                            trailingIcon = {
+                                Icon(
+                                    if (filtersExpanded) Icons.Filled.ExpandLess
+                                    else Icons.Filled.ExpandMore,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
                                 )
-                            },
-                            label = { Text("🏗️ Infraestructura") },
-                            leadingIcon = if (uiState.filterType == IncidentType.INFRAESTRUCTURA) {
-                                { Icon(Icons.Filled.Check, null, Modifier.size(18.dp)) }
-                            } else null
+                            }
                         )
 
-                        FilterChip(
-                            selected = uiState.showVerifiedOnly,
-                            onClick = { viewModel.toggleVerifiedFilter() },
-                            label = { Text("✅ Verificados") },
-                            leadingIcon = if (uiState.showVerifiedOnly) {
-                                { Icon(Icons.Filled.Check, null, Modifier.size(18.dp)) }
-                            } else null
-                        )
+                        // Panel desplegable
+                        DropdownMenu(
+                            expanded = filtersExpanded,
+                            onDismissRequest = { filtersExpanded = false }
+                        ) {
+                            // Filtro: Seguridad
+                            DropdownMenuItem(
+                                text = { Text("🚨 Seguridad") },
+                                onClick = {
+                                    viewModel.filterByType(
+                                        if (uiState.filterType == IncidentType.SEGURIDAD) null
+                                        else IncidentType.SEGURIDAD
+                                    )
+                                },
+                                leadingIcon = {
+                                    Checkbox(
+                                        checked = uiState.filterType == IncidentType.SEGURIDAD,
+                                        onCheckedChange = null
+                                    )
+                                }
+                            )
+
+                            // Filtro: Infraestructura
+                            DropdownMenuItem(
+                                text = { Text("🏗️ Infraestructura") },
+                                onClick = {
+                                    viewModel.filterByType(
+                                        if (uiState.filterType == IncidentType.INFRAESTRUCTURA) null
+                                        else IncidentType.INFRAESTRUCTURA
+                                    )
+                                },
+                                leadingIcon = {
+                                    Checkbox(
+                                        checked = uiState.filterType == IncidentType.INFRAESTRUCTURA,
+                                        onCheckedChange = null
+                                    )
+                                }
+                            )
+
+                            Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+                            // Filtro: Verificados
+                            DropdownMenuItem(
+                                text = { Text("✅ Solo verificados") },
+                                onClick = { viewModel.toggleVerifiedFilter() },
+                                leadingIcon = {
+                                    Checkbox(
+                                        checked = uiState.showVerifiedOnly,
+                                        onCheckedChange = null
+                                    )
+                                }
+                            )
+
+                            // Opción: Limpiar filtros
+                            if (hasActiveFilters) {
+                                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            "Limpiar filtros",
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.filterByType(null)
+                                        if (uiState.showVerifiedOnly) viewModel.toggleVerifiedFilter()
+                                        filtersExpanded = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Filled.Clear,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
 
-                // ⏳ PERMISOS NO CONCEDIDOS → Mostrar pantalla de permisos
                 else -> {
                     PermissionRequestScreen(
                         permissionsState = locationPermissions,
