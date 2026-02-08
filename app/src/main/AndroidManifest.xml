@@ -2,7 +2,40 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- ==========================================
+       PERMISOS DE UBICACIÓN
+       ========================================== -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- ==========================================
+         PERMISOS DE RED
+         ========================================== -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- ==========================================
+         PERMISOS DE NOTIFICACIONES (Android 13+)
+         ========================================== -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- ==========================================
+         PERMISOS DE CÁMARA Y ALMACENAMIENTO
+         ========================================== -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Android 13+ (API 33+) usa permisos granulares -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+
+    <!-- Android 12 y anteriores -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28"
+        tools:ignore="ScopedStorage" />
+
     <application
+        android:usesCleartextTraffic="true"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -14,8 +47,23 @@
         <!--  GOOGLE MAPS API KEY -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="Aqui va la API_KEY" />
-        <!--  FCM (Firebase Cloud Messaging) -->
+            android:value="Aqui se coloca la API_KEY" />
+        <!-- ==========================================
+            FILE PROVIDER (para cámara)
+            ========================================== -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- ==========================================
+                FCM SERVICE (notificaciones)
+           ========================================== -->
         <service
             android:name=".services.FCMService"
             android:exported="false">
@@ -23,6 +71,10 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- ==========================================
+                    MAIN ACTIVITY
+             ========================================== -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
