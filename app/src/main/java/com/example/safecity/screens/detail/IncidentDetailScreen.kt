@@ -44,7 +44,6 @@ fun IncidentDetailScreen(
                     }
                 },
                 actions = {
-                    // Mostrar opciones solo si es del usuario actual
                     if (uiState.isOwner) {
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(Icons.Filled.Delete, contentDescription = "Eliminar")
@@ -105,7 +104,6 @@ fun IncidentDetailScreen(
         }
     }
 
-    // Dialog de confirmación para eliminar
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -148,10 +146,6 @@ private fun IncidentDetailContent(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-        // ==========================================
-        // MAPA
-        // ==========================================
-
         val markerPosition = LatLng(
             incident.location.latitude,
             incident.location.longitude
@@ -182,15 +176,10 @@ private fun IncidentDetailContent(
             }
         }
 
-        // ==========================================
-        // INFORMACIÓN PRINCIPAL
-        // ==========================================
-
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Tipo y verificación
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -203,7 +192,8 @@ private fun IncidentDetailContent(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        incident.type.name.lowercase().capitalize(),
+                        incident.type.name.lowercase()
+                            .replaceFirstChar { it.uppercase() },
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -237,7 +227,6 @@ private fun IncidentDetailContent(
 
             Divider()
 
-            // Descripción
             DetailSection(
                 icon = Icons.Filled.Description,
                 title = "Descripción"
@@ -248,7 +237,6 @@ private fun IncidentDetailContent(
                 )
             }
 
-            // Ubicación
             DetailSection(
                 icon = Icons.Filled.LocationOn,
                 title = "Ubicación"
@@ -264,7 +252,6 @@ private fun IncidentDetailContent(
                 )
             }
 
-            // Reportado por
             DetailSection(
                 icon = Icons.Filled.Person,
                 title = "Reportado por"
@@ -299,7 +286,6 @@ private fun IncidentDetailContent(
 
             Divider()
 
-            // Confirmaciones comunitarias
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -336,7 +322,6 @@ private fun IncidentDetailContent(
                             style = MaterialTheme.typography.bodyMedium
                         )
 
-                        // Botón de confirmar/desconfirmar
                         if (hasUserConfirmed) {
                             OutlinedButton(onClick = onUnconfirm) {
                                 Icon(
@@ -363,7 +348,6 @@ private fun IncidentDetailContent(
                         }
                     }
 
-                    // Mensaje informativo
                     if (!incident.verified && incident.confirmations < 3) {
                         Surface(
                             color = MaterialTheme.colorScheme.secondaryContainer,
@@ -389,9 +373,6 @@ private fun IncidentDetailContent(
                     }
                 }
             }
-
-            // TODO: Galería de fotos
-            // if (incident.photos.isNotEmpty()) { ... }
         }
     }
 }
@@ -427,4 +408,3 @@ private fun formatTimestamp(timestamp: Long): String {
     val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
     return sdf.format(Date(timestamp))
 }
->>>>>>> Stashed changes

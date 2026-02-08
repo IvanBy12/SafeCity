@@ -133,8 +133,6 @@ fun CreateIncidentScreen(
 
             location?.let {
                 currentLocation = GeoPoint(it.latitude, it.longitude)
-
-                // Geocoding inverso para obtener dirección
                 try {
                     val geocoder = Geocoder(context, Locale.getDefault())
                     val addresses = geocoder.getFromLocation(it.latitude, it.longitude, 1)
@@ -168,7 +166,9 @@ fun CreateIncidentScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ✅ Selector de tipo
+            // ========================================
+            // TIPO DE INCIDENTE
+            // ========================================
             Text("Tipo de incidente", style = MaterialTheme.typography.titleMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
@@ -189,7 +189,9 @@ fun CreateIncidentScreen(
                 )
             }
 
-            // ✅ Selector de categoría
+            // ========================================
+            // CATEGORÍA
+            // ========================================
             Text("Categoría", style = MaterialTheme.typography.titleMedium)
             categories.chunked(3).forEach { rowCategories ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

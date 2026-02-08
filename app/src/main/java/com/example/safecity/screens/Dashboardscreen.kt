@@ -26,21 +26,19 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import kotlinx.coroutines.tasks.await
 import com.google.accompanist.permissions.MultiplePermissionsState
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
-
-
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     onLogout: () -> Unit,
+    onNavigateToCreateIncident: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
+    onNavigateToIncidentDetail: (String) -> Unit = {},
     viewModel: DashboardViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
 
-    // ✅ PERMISOS DE UBICACIÓN
     val locationPermissions = rememberMultiplePermissionsState(
         permissions = listOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -48,15 +46,13 @@ fun DashboardScreen(
         )
     )
 
-    // ✅ Estado del mapa
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(
-            uiState.userLocation ?: LatLng(4.6097, -74.0817), // Bogotá default
+            uiState.userLocation ?: LatLng(4.6097, -74.0817),
             13f
         )
     }
 
-    // ✅ Obtener ubicación cuando se concedan permisos
     LaunchedEffect(locationPermissions.allPermissionsGranted) {
         if (locationPermissions.allPermissionsGranted) {
             try {
@@ -76,13 +72,11 @@ fun DashboardScreen(
                         )
                     )
                 }
-            } catch (e: Exception) {
-                // Error obteniendo ubicación
-            }
+            } catch (_: Exception) { }
         }
     }
 
-    // ✅ Bottom Sheet
+    // Bottom Sheet
     val sheetState = rememberModalBottomSheetState()
     var showBottomSheet by remember { mutableStateOf(false) }
 
@@ -308,29 +302,25 @@ fun DashboardScreen(
                 }
             }
 
-            // Loading overlay
+            // Loading
             if (uiState.loading) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center))
             }
 
-            // Error snackbar
+            // Error
             uiState.error?.let { error ->
                 Snackbar(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(16.dp),
                     action = {
-                        TextButton(onClick = { viewModel.clearError() }) {
-                            Text("OK")
-                        }
+                        TextButton(onClick = { viewModel.clearError() }) { Text("OK") }
                     }
-                ) {
-                    Text(error)
-                }
+                ) { Text(error) }
             }
         }
 
-        // BOTTOM SHEET
+        // Bottom Sheet
         if (showBottomSheet && uiState.selectedIncident != null) {
             ModalBottomSheet(
                 onDismissRequest = {
@@ -340,28 +330,19 @@ fun DashboardScreen(
                 sheetState = sheetState
             ) {
                 uiState.selectedIncident?.let { selectedIncident ->
-                    ModalBottomSheet(
-                        onDismissRequest = { viewModel.selectIncident(null) },
-                        sheetState = rememberModalBottomSheetState()
-                    ) {
-                        IncidentDetailsSheet(
-                            incident = selectedIncident,
-                            userLocation = uiState.userLocation,
-                            onConfirm = { viewModel.confirmIncident(it) },
-                            onUnconfirm = { viewModel.unconfirmIncident(it) },
-                            hasUserConfirmed = viewModel.hasUserConfirmed(selectedIncident),
-                            calculateDistance = viewModel::calculateDistance
-                        )
-                    }
+                    IncidentDetailsSheet(
+                        incident = selectedIncident,
+                        userLocation = uiState.userLocation,
+                        onConfirm = { viewModel.confirmIncident(it) },
+                        onUnconfirm = { viewModel.unconfirmIncident(it) },
+                        hasUserConfirmed = viewModel.hasUserConfirmed(selectedIncident),
+                        calculateDistance = viewModel::calculateDistance
+                    )
                 }
             }
         }
     }
 }
-
-// ==========================================
-// PANTALLA DE SOLICITUD DE PERMISOS
-// ==========================================
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -396,7 +377,6 @@ fun PermissionRequestScreen(
                     style = MaterialTheme.typography.bodyMedium
                 )
 
-                // (Opcional) mensaje si el sistema recomienda mostrar explicación
                 if (permissionsState.shouldShowRationale) {
                     Text(
                         "Parece que rechazaste los permisos antes. Si los aceptas, podremos mostrar tu ubicación en el mapa.",

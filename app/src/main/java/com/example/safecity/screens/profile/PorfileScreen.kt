@@ -52,10 +52,6 @@ fun ProfileScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
-            // ==========================================
-            // HEADER - Información del usuario
-            // ==========================================
-
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.primaryContainer
@@ -65,7 +61,6 @@ fun ProfileScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Avatar
                     Box(
                         modifier = Modifier
                             .size(80.dp)
@@ -81,14 +76,12 @@ fun ProfileScreen(
                         )
                     }
 
-                    // Nombre
                     Text(
                         currentUser?.displayName ?: "Usuario",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
 
-                    // Email
                     Text(
                         currentUser?.email ?: "Sin email",
                         style = MaterialTheme.typography.bodyMedium,
@@ -98,10 +91,6 @@ fun ProfileScreen(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // ==========================================
-            // SECCIÓN: Reportes
-            // ==========================================
 
             SectionHeader("Mis Reportes")
 
@@ -113,10 +102,6 @@ fun ProfileScreen(
             )
 
             Divider(modifier = Modifier.padding(horizontal = 16.dp))
-
-            // ==========================================
-            // SECCIÓN: Privacidad
-            // ==========================================
 
             SectionHeader("Privacidad")
 
@@ -140,10 +125,6 @@ fun ProfileScreen(
 
             Divider(modifier = Modifier.padding(horizontal = 16.dp))
 
-            // ==========================================
-            // SECCIÓN: Notificaciones
-            // ==========================================
-
             SectionHeader("Notificaciones")
 
             SwitchMenuItem(
@@ -156,12 +137,7 @@ fun ProfileScreen(
 
             Divider(modifier = Modifier.padding(horizontal = 16.dp))
 
-            // ==========================================
-            // SECCIÓN: Estadísticas (solo para admin)
-            // ==========================================
-
-            // TODO: Verificar si el usuario es admin
-            val isAdmin = currentUser?.email == "admin@safecity.com" // Temporal
+            val isAdmin = currentUser?.email == "admin@safecity.com"
 
             if (isAdmin) {
                 SectionHeader("Administración")
@@ -176,17 +152,13 @@ fun ProfileScreen(
                 Divider(modifier = Modifier.padding(horizontal = 16.dp))
             }
 
-            // ==========================================
-            // SECCIÓN: Cuenta
-            // ==========================================
-
             SectionHeader("Cuenta")
 
             ProfileMenuItem(
                 icon = Icons.Filled.Info,
                 title = "Acerca de SafeCity",
                 subtitle = "Versión 1.0.0",
-                onClick = { /* TODO: Mostrar info */ }
+                onClick = { }
             )
 
             Divider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -202,10 +174,6 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
-
-    // ==========================================
-    // DIALOG: Confirmar logout
-    // ==========================================
 
     if (showLogoutDialog) {
         AlertDialog(
@@ -231,10 +199,6 @@ fun ProfileScreen(
         )
     }
 }
-
-// ==========================================
-// COMPONENTES REUTILIZABLES
-// ==========================================
 
 @Composable
 private fun SectionHeader(title: String) {
@@ -292,4 +256,3 @@ private fun SwitchMenuItem(
         }
     )
 }
->>>>>>> Stashed changes

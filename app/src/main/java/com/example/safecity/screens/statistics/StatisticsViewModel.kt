@@ -42,18 +42,15 @@ class StatisticsViewModel(
                 .collect { incidents ->
                     Log.d(TAG, "📊 Procesando ${incidents.size} incidentes")
 
-                    // Calcular estadísticas
                     val total = incidents.size
                     val verified = incidents.count { it.verified }
                     val security = incidents.count { it.type == IncidentType.SEGURIDAD }
                     val infrastructure = incidents.count { it.type == IncidentType.INFRAESTRUCTURA }
 
-                    // Incidentes de hoy
                     val today = System.currentTimeMillis()
                     val oneDayAgo = today - TimeUnit.DAYS.toMillis(1)
                     val incidentsToday = incidents.count { it.timestamp >= oneDayAgo }
 
-                    // Top 5 tipos más reportados
                     val typeCount = incidents
                         .groupBy { it.category }
                         .mapValues { it.value.size }
@@ -61,7 +58,6 @@ class StatisticsViewModel(
                         .sortedByDescending { it.second }
                         .take(5)
 
-                    // Promedio de confirmaciones
                     val avgConfirmations = if (incidents.isNotEmpty()) {
                         incidents.sumOf { it.confirmations }.toDouble() / incidents.size
                     } else {
@@ -81,18 +77,8 @@ class StatisticsViewModel(
                         )
                     }
 
-                    Log.d(TAG, "✅ Estadísticas calculadas:")
-                    Log.d(TAG, "  - Total: $total")
-                    Log.d(TAG, "  - Verificados: $verified")
-                    Log.d(TAG, "  - Seguridad: $security")
-                    Log.d(TAG, "  - Infraestructura: $infrastructure")
-                    Log.d(TAG, "  - Hoy: $incidentsToday")
-                    Log.d(TAG, "  - Promedio confirmaciones: $avgConfirmations")
-
-                    // Solo recolectar una vez
                     return@collect
                 }
         }
     }
 }
->>>>>>> Stashed changes

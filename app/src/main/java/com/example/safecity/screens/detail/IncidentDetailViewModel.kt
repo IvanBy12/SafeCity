@@ -36,7 +36,6 @@ class IncidentDetailViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true, error = null) }
 
-            // Obtener incidente del flow
             repository.getIncidentsFlow()
                 .collect { incidents ->
                     val incident = incidents.find { it.id == incidentId }
@@ -62,7 +61,6 @@ class IncidentDetailViewModel(
                         }
                     }
 
-                    // Solo recolectar una vez
                     return@collect
                 }
         }
@@ -77,7 +75,6 @@ class IncidentDetailViewModel(
             repository.confirmIncident(incidentId)
                 .onSuccess {
                     Log.d(TAG, "✅ Confirmación exitosa")
-                    // Recargar para actualizar estado
                     loadIncident(incidentId)
                 }
                 .onFailure { e ->
@@ -96,7 +93,6 @@ class IncidentDetailViewModel(
             repository.unconfirmIncident(incidentId)
                 .onSuccess {
                     Log.d(TAG, "✅ Confirmación removida")
-                    // Recargar para actualizar estado
                     loadIncident(incidentId)
                 }
                 .onFailure { e ->
@@ -128,4 +124,3 @@ class IncidentDetailViewModel(
         }
     }
 }
->>>>>>> Stashed changes

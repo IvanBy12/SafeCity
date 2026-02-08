@@ -34,18 +34,16 @@ class MyReportsViewModel(
             return
         }
 
-        Log.d(TAG, "📋 Cargando reportes del usuario: $currentUserId")
+        Log.d(TAG, "Cargando reportes del usuario: $currentUserId")
 
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true, error = null) }
 
-            // Recolectar una vez del flow
             repository.getIncidentsFlow()
                 .collect { allIncidents ->
-                    // Filtrar solo los incidentes del usuario actual
                     val myIncidents = allIncidents.filter { it.userId == currentUserId }
 
-                    Log.d(TAG, "✅ Reportes del usuario: ${myIncidents.size} de ${allIncidents.size} totales")
+                    Log.d(TAG, "Reportes del usuario: ${myIncidents.size} de ${allIncidents.size} totales")
 
                     _uiState.update {
                         it.copy(
@@ -54,10 +52,8 @@ class MyReportsViewModel(
                         )
                     }
 
-                    // Solo recolectar una vez
                     return@collect
                 }
         }
     }
 }
->>>>>>> Stashed changes
