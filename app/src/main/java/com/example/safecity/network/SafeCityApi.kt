@@ -2,44 +2,128 @@ package com.example.safecity.network
 
 import retrofit2.http.*
 
-data class BootstrapBody(val displayName: String? = null, val photoUrl: String? = null)
+// ==========================================
+// REQUEST BODIES
+// ==========================================
 
-data class MeResponse(
-    val firebaseUid: String,
-    val role: String,
-    val status: String,
-    val email: String?,
-    val isAdmin: Boolean
+data class CreateIncidentReq(
+    val categoryGroup: String,
+    val type: String,
+    val title: String,
+    val description: String,
+    val latitude: Double,
+    val longitude: Double,
+    val address: String? = null
 )
+
+data class VoteRequest(
+    val voteType: String = "upvote"
+)
+
+data class CommentRequest(
+    val text: String
+)
+
+// ==========================================
+// RESPONSE MODELS
+// ==========================================
+
+// ✅ NUEVO: Response con paginación
+data class PaginatedIncidentsResponse(
+    val success: Boolean,
+    val page: Int,
+    val limit: Int,
+    val total: Int,
+    val count: Int,
+    val data: List<IncidentResp>  // Los incidentes están en "data"
+)
+
+data class IncidentResp(
+    val _id: String,
+    val categoryGroup: String,
+    val type: String,
+    val title: String,
+    val description: String,
+    val location: LocationResponse,
+    val address: String?,
+    val reporterUid: String,
+    val status: String,
+    val confirmationsCount: Int,
+    val confirmedBy: List<String>?, //FIX: Hacer nullable
+    val createdAt: String,
+    val updatedAt: String
+)
+
+data class LocationResponse(
+    val type: String,
+    val coordinates: List<Double>
+)
+
+data class StatsResponse(
+    val total: Int,
+    val verified: Int,
+    val byType: Map<String, Int>
+)
+
+// ==========================================
+// API INTERFACE
+// ==========================================
 
 interface SafeCityApi {
 
-    // Si authBootstrap router está montado en "/" y la route es "/auth/bootstrap":
-    @POST("auth/bootstrap")
-    suspend fun bootstrap(
-        @Header("Authorization") auth: String,
-        @Body body: BootstrapBody
-    ): Map<String, Any>
-
-    @GET("me")
-    suspend fun me(
-        @Header("Authorization") auth: String
-    ): MeResponse
-
-    // Incidents.js asumiendo que el router se montó con app.use("/incidents", incidentsRouter)
+    // ✅ ACTUALIZADO: Ahora devuelve PaginatedIncidentsResponse
     @GET("incidents")
-    suspend fun listIncidents(@Header("Authorization") auth: String): List<Map<String, Any>>
+    suspend fun listIncidents(
+        @Header("Authorization") auth: String
+    ): PaginatedIncidentsResponse  // Cambio aquí
 
     @GET("incidents/near")
     suspend fun listNearby(
         @Header("Authorization") auth: String,
         @Query("lat") lat: Double,
         @Query("lng") lng: Double,
-        @Query("radius") radius: Int
-    ): List<Map<String, Any>>
+        @Query("radius") radiusKm: Int = 5
+    ): PaginatedIncidentsResponse  // Y aquí
+
+    @GET("incidents/stats")
+    suspend fun getStats(
+        @Header("Authorization") auth: String
+    ): StatsResponse
 
     @GET("incidents/{id}")
-    suspend fun incidentDetail(
+    suspend fun getIncidentDetail(
+        @Header("Authorization") auth: String,
+        @Path("id") id: String
+    ): IncidentResp
+
+    @POST("incidents")
+    suspend fun createIncident(
+        @Header("Authorization") auth: String,
+        @Body request: CreateIncidentReq
+    ): IncidentResp
+
+    @PUT("incidents/{id}/confirm")
+    suspend fun confirmIncident(
+        @Header("Authorization") auth: String,
+        @Path("id") id: String
+    ): IncidentResp
+
+    @POST("incidents/{id}/votes")
+    suspend fun voteIncident(
+        @Header("Authorization") auth: String,
+        @Path("id") id: String,
+        @Body vote: VoteRequest
+    ): IncidentResp
+
+    @POST("incidents/{id}/comments")
+    suspend fun addComment(
+        @Header("Authorization") auth: String,
+        @Path("id") id: String,
+        @Body comment: CommentRequest
+    ): IncidentResp
+
+    @DELETE("incidents/{id}")
+    suspend fun deleteIncident(
         @Header("Authorization") auth: String,
         @Path("id") id: String
     ): Map<String, Any>
