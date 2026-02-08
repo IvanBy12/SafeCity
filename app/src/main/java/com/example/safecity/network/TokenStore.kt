@@ -9,7 +9,6 @@ object TokenStore {
     fun get(): String? = cachedToken
     fun clear() { cachedToken = null }
 
-    /** Úsalo después de login/register (forceRefresh=true) o al iniciar app (false). */
     suspend fun refresh(forceRefresh: Boolean = false): String? {
         val user = FirebaseAuth.getInstance().currentUser ?: run {
             cachedToken = null
@@ -21,7 +20,6 @@ object TokenStore {
             cachedToken = token
             token
         } catch (e: Exception) {
-            // no bloquees la app si falla
             cachedToken = null
             null
         }
