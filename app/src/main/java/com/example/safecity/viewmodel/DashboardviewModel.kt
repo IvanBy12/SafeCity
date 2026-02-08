@@ -1,6 +1,7 @@
 package com.example.safecity.viewmodel
 
 import android.location.Location
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.safecity.models.Incident
@@ -26,21 +27,71 @@ class DashboardViewModel(
     private val repository: IncidentRepository = IncidentRepository()
 ) : ViewModel() {
 
+    private val TAG = "DashboardViewModel"
+
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState = _uiState.asStateFlow()
 
     init {
+        Log.d(TAG, "🚀 DashboardViewModel inicializado")
         observeIncidents()
     }
 
-    // ✅ Listener en tiempo real de Firestore
+    // ==========================================
+    // OBSERVAR INCIDENTES (Flow reactivo)
+    // ==========================================
+
     private fun observeIncidents() {
+        Log.d(TAG, "👀 Iniciando observación de incidentes...")
+
         viewModelScope.launch {
             repository.getIncidentsFlow()
                 .catch { e ->
+                    Log.e(TAG, "❌ Error en flow: ${e.message}", e)
                     _uiState.update { it.copy(error = e.message, loading = false) }
                 }
                 .collect { incidents ->
+                    Log.d(TAG, "📦 Flow emitió: ${incidents.size} incidentes")
+
+                    _uiState.update { state ->
+                        val filtered = applyFilters(incidents, state)
+
+                        Log.d(TAG, "🔍 Después de filtros: ${filtered.size} incidentes")
+
+                        state.copy(
+                            incidents = incidents,
+                            filteredIncidents = filtered,
+                            loading = false
+                        )
+                    }
+                }
+        }
+    }
+
+    // ==========================================
+    // REFRESCAR INCIDENTES MANUALMENTE
+    // ==========================================
+
+    fun refreshIncidents() {
+        Log.d(TAG, "🔄 Refrescando incidentes manualmente...")
+        _uiState.update { it.copy(loading = true) }
+        observeIncidents()
+    }
+
+    // ==========================================
+    // BUSCAR INCIDENTES CERCANOS
+    // ==========================================
+
+    fun loadNearbyIncidents(lat: Double, lng: Double, radiusKm: Int = 5) {
+        Log.d(TAG, "📍 Buscando cercanos: lat=$lat, lng=$lng, radius=$radiusKm km")
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(loading = true) }
+
+            repository.getNearbyIncidents(lat, lng, radiusKm)
+                .onSuccess { incidents ->
+                    Log.d(TAG, "✅ Cercanos encontrados: ${incidents.size}")
+
                     _uiState.update { state ->
                         state.copy(
                             incidents = incidents,
@@ -49,20 +100,35 @@ class DashboardViewModel(
                         )
                     }
                 }
+                .onFailure { e ->
+                    Log.e(TAG, "❌ Error buscando cercanos: ${e.message}", e)
+                    _uiState.update { it.copy(error = e.message, loading = false) }
+                }
         }
     }
 
-    // ✅ Aplicar filtros
+    // ==========================================
+    // APLICAR FILTROS
+    // ==========================================
+
     private fun applyFilters(incidents: List<Incident>, state: DashboardUiState): List<Incident> {
-        return incidents.filter { incident ->
+        val filtered = incidents.filter { incident ->
             val matchesType = state.filterType == null || incident.type == state.filterType
             val matchesVerified = !state.showVerifiedOnly || incident.verified
             matchesType && matchesVerified
         }
+
+        Log.d(TAG, "🔍 Filtros aplicados:")
+        Log.d(TAG, "  - Tipo: ${state.filterType?.name ?: "Todos"}")
+        Log.d(TAG, "  - Solo verificados: ${state.showVerifiedOnly}")
+        Log.d(TAG, "  - Resultado: ${filtered.size}/${incidents.size}")
+
+        return filtered
     }
 
-    // ✅ Filtrar por tipo
     fun filterByType(type: IncidentType?) {
+        Log.d(TAG, "🏷️ Filtrando por tipo: ${type?.name ?: "Todos"}")
+
         _uiState.update { state ->
             state.copy(
                 filterType = type,
@@ -71,8 +137,9 @@ class DashboardViewModel(
         }
     }
 
-    // ✅ Toggle filtro de verificados
     fun toggleVerifiedFilter() {
+        Log.d(TAG, "✅ Alternando filtro de verificados")
+
         _uiState.update { state ->
             val newValue = !state.showVerifiedOnly
             state.copy(
@@ -82,19 +149,30 @@ class DashboardViewModel(
         }
     }
 
-    // ✅ Seleccionar incidente (bottom sheet)
+    // ==========================================
+    // SELECCIONAR INCIDENTE
+    // ==========================================
+
     fun selectIncident(incident: Incident?) {
+        Log.d(TAG, "👆 Incidente seleccionado: ${incident?.id ?: "ninguno"}")
         _uiState.update { it.copy(selectedIncident = incident) }
     }
 
-    // ✅ Actualizar ubicación del usuario
+    // ==========================================
+    // UBICACIÓN DEL USUARIO
+    // ==========================================
+
     fun updateUserLocation(location: Location) {
+        Log.d(TAG, "📍 Ubicación actualizada: ${location.latitude}, ${location.longitude}")
         _uiState.update {
             it.copy(userLocation = LatLng(location.latitude, location.longitude))
         }
     }
 
-    // ✅ Calcular distancia entre dos puntos
+    // ==========================================
+    // CALCULAR DISTANCIA
+    // ==========================================
+
     fun calculateDistance(from: LatLng, to: GeoPoint): String {
         val results = FloatArray(1)
         Location.distanceBetween(
@@ -110,27 +188,80 @@ class DashboardViewModel(
         }
     }
 
-    // ✅ Confirmar incidente
+    // ==========================================
+    // CONFIRMAR INCIDENTE (Backend)
+    // ==========================================
+
     fun confirmIncident(incidentId: String) {
+        Log.d(TAG, "✅ Confirmando incidente: $incidentId")
+
         viewModelScope.launch {
+            _uiState.update { it.copy(loading = true) }
+
             repository.confirmIncident(incidentId)
+                .onSuccess {
+                    Log.d(TAG, "✅ Incidente confirmado exitosamente")
+                    refreshIncidents()
+                }
+                .onFailure { e ->
+                    Log.e(TAG, "❌ Error confirmando: ${e.message}", e)
+                    _uiState.update { it.copy(error = e.message, loading = false) }
+                }
+        }
+    }
+
+    // ==========================================
+    // CREAR INCIDENTE (Backend)
+    // ==========================================
+
+    fun createIncident(incident: Incident, onSuccess: () -> Unit) {
+        Log.d(TAG, "📝 Creando incidente: ${incident.type} - ${incident.category}")
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(loading = true) }
+
+            repository.createIncident(incident)
+                .onSuccess { id ->
+                    Log.d(TAG, "✅ Incidente creado: $id")
+                    _uiState.update { it.copy(loading = false) }
+                    refreshIncidents()
+                    onSuccess()
+                }
+                .onFailure { e ->
+                    Log.e(TAG, "❌ Error creando: ${e.message}", e)
+                    _uiState.update { it.copy(error = e.message, loading = false) }
+                }
+        }
+    }
+
+    // ==========================================
+    // AGREGAR COMENTARIO
+    // ==========================================
+
+    fun addComment(incidentId: String, text: String) {
+        viewModelScope.launch {
+            repository.addComment(incidentId, text)
+                .onSuccess {
+                    refreshIncidents()
+                }
                 .onFailure { e ->
                     _uiState.update { it.copy(error = e.message) }
                 }
         }
     }
 
-    // ✅ Crear nuevo incidente
-    fun createIncident(incident: Incident, onSuccess: () -> Unit) {
+    // ==========================================
+    // ELIMINAR INCIDENTE
+    // ==========================================
+
+    fun deleteIncident(incidentId: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(loading = true) }
-            repository.createIncident(incident)
+            repository.deleteIncident(incidentId)
                 .onSuccess {
-                    _uiState.update { it.copy(loading = false) }
-                    onSuccess()
+                    refreshIncidents()
                 }
                 .onFailure { e ->
-                    _uiState.update { it.copy(error = e.message, loading = false) }
+                    _uiState.update { it.copy(error = e.message) }
                 }
         }
     }
