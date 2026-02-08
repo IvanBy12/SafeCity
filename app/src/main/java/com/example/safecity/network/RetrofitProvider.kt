@@ -18,13 +18,6 @@ object RetrofitProvider {
         .addInterceptor(logging)
         .build()
 
-    val api: ApiService by lazy {
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .client(okHttp)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(ApiService::class.java)
-    }
+
 
 }
