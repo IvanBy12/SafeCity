@@ -2,7 +2,6 @@ package com.example.safecity.screens.dashboard
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.location.Location
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -17,9 +16,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.safecity.models.IncidentType
 import com.example.safecity.viewmodel.DashboardViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
-import com.google.accompanist.permissions.shouldShowRationale
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -29,6 +26,9 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import kotlinx.coroutines.tasks.await
 import com.google.accompanist.permissions.MultiplePermissionsState
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+
 
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
@@ -267,12 +267,21 @@ fun DashboardScreen(
                 },
                 sheetState = sheetState
             ) {
-                IncidentDetailsSheet(
-                    incident = uiState.selectedIncident!!,
-                    userLocation = uiState.userLocation,
-                    onConfirm = { viewModel.confirmIncident(it) },
-                    calculateDistance = { from, to -> viewModel.calculateDistance(from, to) }
-                )
+                uiState.selectedIncident?.let { selectedIncident ->
+                    ModalBottomSheet(
+                        onDismissRequest = { viewModel.selectIncident(null) },
+                        sheetState = rememberModalBottomSheetState()
+                    ) {
+                        IncidentDetailsSheet(
+                            incident = selectedIncident,
+                            userLocation = uiState.userLocation,
+                            onConfirm = { viewModel.confirmIncident(it) },
+                            onUnconfirm = { viewModel.unconfirmIncident(it) },
+                            hasUserConfirmed = viewModel.hasUserConfirmed(selectedIncident),
+                            calculateDistance = viewModel::calculateDistance
+                        )
+                    }
+                }
             }
         }
     }

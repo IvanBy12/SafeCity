@@ -20,6 +20,8 @@ fun IncidentDetailsSheet(
     incident: Incident,
     userLocation: LatLng?,
     onConfirm: (String) -> Unit,
+    onUnconfirm: (String) -> Unit,  // ✅ NUEVO
+    hasUserConfirmed: Boolean,       // ✅ NUEVO: Indica si el usuario ya confirmó
     calculateDistance: (LatLng, GeoPoint) -> String
 ) {
     Column(
@@ -88,7 +90,6 @@ fun IncidentDetailsSheet(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Dirección
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(
@@ -109,7 +110,6 @@ fun IncidentDetailsSheet(
                 )
             }
 
-            // Distancia
             if (userLocation != null) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -177,7 +177,7 @@ fun IncidentDetailsSheet(
             }
         }
 
-        // ✅ Confirmaciones comunitarias
+        // ✅ Confirmaciones comunitarias + Botón dinámico
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -192,19 +192,31 @@ fun IncidentDetailsSheet(
                 Text("${incident.confirmations} confirmaciones")
             }
 
-            // ✅ Botón confirmar
-            FilledTonalButton(
-                onClick = { onConfirm(incident.id) },
-                enabled = !incident.verified // Deshabilitar si ya está verificado
-            ) {
-                Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Confirmar")
+            // ✅ NUEVO: Botón dinámico Confirmar/Desconfirmar
+            if (hasUserConfirmed) {
+                // Usuario YA confirmó → Mostrar botón de desconfirmar
+                OutlinedButton(
+                    onClick = { onUnconfirm(incident.id) }
+                ) {
+                    Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Quitar confirmación")
+                }
+            } else {
+                // Usuario NO ha confirmado → Mostrar botón de confirmar
+                FilledTonalButton(
+                    onClick = { onConfirm(incident.id) },
+                    enabled = !incident.verified
+                ) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Confirmar")
+                }
             }
         }
 
         // ✅ Nota sobre verificación
-        if (incident.confirmations < 3) {
+        if (incident.confirmations < 3 && !hasUserConfirmed) {
             Surface(
                 color = MaterialTheme.colorScheme.secondaryContainer,
                 shape = MaterialTheme.shapes.small
@@ -225,6 +237,33 @@ fun IncidentDetailsSheet(
                         "Se necesitan ${3 - incident.confirmations} confirmaciones más para verificar este reporte",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+        }
+
+        // ✅ NUEVO: Mensaje cuando el usuario ya confirmó
+        if (hasUserConfirmed) {
+            Surface(
+                color = MaterialTheme.colorScheme.tertiaryContainer,
+                shape = MaterialTheme.shapes.small
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    Text(
+                        "Ya confirmaste este incidente. Puedes quitar tu confirmación si lo deseas.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                 }
             }

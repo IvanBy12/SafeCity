@@ -8,6 +8,7 @@ import com.example.safecity.models.Incident
 import com.example.safecity.models.IncidentType
 import com.example.safecity.repository.IncidentRepository
 import com.google.android.gms.maps.model.LatLng
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.GeoPoint
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -19,8 +20,9 @@ data class DashboardUiState(
     val userLocation: LatLng? = null,
     val filterType: IncidentType? = null,
     val showVerifiedOnly: Boolean = false,
-    val loading: Boolean = true,
-    val error: String? = null
+    val loading: Boolean = false,  // ✅ Cambiado a false para no mostrar loading inicial
+    val error: String? = null,
+    val currentUserId: String? = null  // ✅ NUEVO: Para saber si el usuario ya confirmó
 )
 
 class DashboardViewModel(
@@ -29,7 +31,9 @@ class DashboardViewModel(
 
     private val TAG = "DashboardViewModel"
 
-    private val _uiState = MutableStateFlow(DashboardUiState())
+    private val _uiState = MutableStateFlow(DashboardUiState(
+        currentUserId = FirebaseAuth.getInstance().currentUser?.uid  // ✅ Obtener userId
+    ))
     val uiState = _uiState.asStateFlow()
 
     init {
@@ -38,11 +42,11 @@ class DashboardViewModel(
     }
 
     // ==========================================
-    // OBSERVAR INCIDENTES (Flow reactivo)
+    // OBSERVAR INCIDENTES (con polling automático)
     // ==========================================
 
     private fun observeIncidents() {
-        Log.d(TAG, "👀 Iniciando observación de incidentes...")
+        Log.d(TAG, "👀 Iniciando observación de incidentes con polling...")
 
         viewModelScope.launch {
             repository.getIncidentsFlow()
@@ -66,16 +70,6 @@ class DashboardViewModel(
                     }
                 }
         }
-    }
-
-    // ==========================================
-    // REFRESCAR INCIDENTES MANUALMENTE
-    // ==========================================
-
-    fun refreshIncidents() {
-        Log.d(TAG, "🔄 Refrescando incidentes manualmente...")
-        _uiState.update { it.copy(loading = true) }
-        observeIncidents()
     }
 
     // ==========================================
@@ -112,18 +106,11 @@ class DashboardViewModel(
     // ==========================================
 
     private fun applyFilters(incidents: List<Incident>, state: DashboardUiState): List<Incident> {
-        val filtered = incidents.filter { incident ->
+        return incidents.filter { incident ->
             val matchesType = state.filterType == null || incident.type == state.filterType
             val matchesVerified = !state.showVerifiedOnly || incident.verified
             matchesType && matchesVerified
         }
-
-        Log.d(TAG, "🔍 Filtros aplicados:")
-        Log.d(TAG, "  - Tipo: ${state.filterType?.name ?: "Todos"}")
-        Log.d(TAG, "  - Solo verificados: ${state.showVerifiedOnly}")
-        Log.d(TAG, "  - Resultado: ${filtered.size}/${incidents.size}")
-
-        return filtered
     }
 
     fun filterByType(type: IncidentType?) {
@@ -189,29 +176,47 @@ class DashboardViewModel(
     }
 
     // ==========================================
-    // CONFIRMAR INCIDENTE (Backend)
+    // CONFIRMAR INCIDENTE
     // ==========================================
 
     fun confirmIncident(incidentId: String) {
         Log.d(TAG, "✅ Confirmando incidente: $incidentId")
 
         viewModelScope.launch {
-            _uiState.update { it.copy(loading = true) }
-
             repository.confirmIncident(incidentId)
                 .onSuccess {
-                    Log.d(TAG, "✅ Incidente confirmado exitosamente")
-                    refreshIncidents()
+                    Log.d(TAG, "✅ Confirmación exitosa")
+                    // El polling automático actualizará la UI
                 }
                 .onFailure { e ->
                     Log.e(TAG, "❌ Error confirmando: ${e.message}", e)
-                    _uiState.update { it.copy(error = e.message, loading = false) }
+                    _uiState.update { it.copy(error = e.message) }
                 }
         }
     }
 
     // ==========================================
-    // CREAR INCIDENTE (Backend)
+    // ✅ NUEVO: DESCONFIRMAR INCIDENTE
+    // ==========================================
+
+    fun unconfirmIncident(incidentId: String) {
+        Log.d(TAG, "❌ Desconfirmando incidente: $incidentId")
+
+        viewModelScope.launch {
+            repository.unconfirmIncident(incidentId)
+                .onSuccess {
+                    Log.d(TAG, "✅ Confirmación removida")
+                    // El polling automático actualizará la UI
+                }
+                .onFailure { e ->
+                    Log.e(TAG, "❌ Error desconfirmando: ${e.message}", e)
+                    _uiState.update { it.copy(error = e.message) }
+                }
+        }
+    }
+
+    // ==========================================
+    // CREAR INCIDENTE
     // ==========================================
 
     fun createIncident(incident: Incident, onSuccess: () -> Unit) {
@@ -224,7 +229,7 @@ class DashboardViewModel(
                 .onSuccess { id ->
                     Log.d(TAG, "✅ Incidente creado: $id")
                     _uiState.update { it.copy(loading = false) }
-                    refreshIncidents()
+                    // El polling automático agregará el nuevo incidente
                     onSuccess()
                 }
                 .onFailure { e ->
@@ -242,7 +247,7 @@ class DashboardViewModel(
         viewModelScope.launch {
             repository.addComment(incidentId, text)
                 .onSuccess {
-                    refreshIncidents()
+                    // El polling actualizará
                 }
                 .onFailure { e ->
                     _uiState.update { it.copy(error = e.message) }
@@ -258,7 +263,7 @@ class DashboardViewModel(
         viewModelScope.launch {
             repository.deleteIncident(incidentId)
                 .onSuccess {
-                    refreshIncidents()
+                    // El polling removerá el incidente
                 }
                 .onFailure { e ->
                     _uiState.update { it.copy(error = e.message) }
@@ -268,5 +273,14 @@ class DashboardViewModel(
 
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+
+    // ==========================================
+    // ✅ NUEVO: VERIFICAR SI EL USUARIO YA CONFIRMÓ
+    // ==========================================
+
+    fun hasUserConfirmed(incident: Incident): Boolean {
+        val userId = _uiState.value.currentUserId ?: return false
+        return incident.confirmedBy.contains(userId)
     }
 }

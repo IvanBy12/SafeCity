@@ -47,7 +47,7 @@
         <!--  GOOGLE MAPS API KEY -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="Aqui se coloca la API_KEY" />
+            android:value="API_KEY" />
         <!-- ==========================================
             FILE PROVIDER (para cámara)
             ========================================== -->

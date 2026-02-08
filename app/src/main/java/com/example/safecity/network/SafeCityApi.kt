@@ -108,6 +108,12 @@ interface SafeCityApi {
         @Path("id") id: String
     ): IncidentResp
 
+    @DELETE("incidents/{id}/confirm")
+    suspend fun unconfirmIncident(
+        @Header("Authorization") auth: String,
+        @Path("id") id: String
+    ): IncidentResp
+
     @POST("incidents/{id}/votes")
     suspend fun voteIncident(
         @Header("Authorization") auth: String,

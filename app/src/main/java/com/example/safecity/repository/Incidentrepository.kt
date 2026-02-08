@@ -10,6 +10,7 @@ import com.example.safecity.network.IncidentResp
 import com.example.safecity.network.TokenStore
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.GeoPoint
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
@@ -20,48 +21,44 @@ class IncidentRepository(
     private val TAG = "IncidentRepository"
 
     // ==========================================
-    // LISTAR INCIDENTES (con Flow para UI reactiva)
+    // LISTAR INCIDENTES CON POLLING AUTOMÁTICO
     // ==========================================
 
     fun getIncidentsFlow(): Flow<List<Incident>> = flow {
-        try {
-            Log.d(TAG, "🔍 Iniciando carga de incidentes...")
+        while (true) {  // ✅ Loop infinito para polling
+            try {
+                Log.d(TAG, "🔄 Actualizando incidentes...")
 
-            val token = TokenStore.get() ?: run {
-                Log.d(TAG, "⚠️ No hay token en cache, refrescando...")
-                TokenStore.refresh()
-                TokenStore.get()
-            }
+                val token = TokenStore.get() ?: run {
+                    Log.d(TAG, "⚠️ No hay token en cache, refrescando...")
+                    TokenStore.refresh()
+                    TokenStore.get()
+                }
 
-            if (token.isNullOrBlank()) {
-                Log.e(TAG, "❌ Token vacío después de refresh")
+                if (token.isNullOrBlank()) {
+                    Log.e(TAG, "❌ Token vacío después de refresh")
+                    emit(emptyList())
+                    delay(30000) // Esperar 30s antes de reintentar
+                    continue
+                }
+
+                val paginatedResponse = api.listIncidents("Bearer $token")
+                val response = paginatedResponse.data
+
+                Log.d(TAG, "✅ Response recibida: ${response.size} incidentes")
+
+                val incidents = response.map { it.toIncident() }
+
+                emit(incidents)
+
+                // ✅ Esperar 10 segundos antes de la próxima actualización
+                delay(10000)
+
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error cargando incidentes: ${e.message}", e)
                 emit(emptyList())
-                return@flow
+                delay(30000) // En caso de error, esperar 30s
             }
-
-            Log.d(TAG, "✅ Token obtenido: ${token.take(30)}...")
-            Log.d(TAG, "🌐 URL: ${com.example.safecity.network.BackendConfig.BASE_URL}")
-            Log.d(TAG, "📡 Haciendo petición GET /incidents...")
-
-            // ✅ CAMBIO: Ahora usamos .data para obtener el array de incidentes
-            val paginatedResponse = api.listIncidents("Bearer $token")
-            val response = paginatedResponse.data  // Extraer el array de incidentes
-
-            Log.d(TAG, "✅ Response recibida: ${response.size} incidentes (total: ${paginatedResponse.total})")
-
-            response.forEachIndexed { index, incident ->
-                Log.d(TAG, "  📍 [$index] ${incident.categoryGroup} - ${incident.type}")
-            }
-
-            val incidents = response.map { it.toIncident() }
-
-            Log.d(TAG, "✅ Incidentes mapeados: ${incidents.size}")
-
-            emit(incidents)
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Error cargando incidentes: ${e.message}", e)
-            e.printStackTrace()
-            emit(emptyList())
         }
     }
 
@@ -79,7 +76,6 @@ class IncidentRepository(
 
             val token = getToken() ?: return Result.failure(Exception("No autenticado"))
 
-            // ✅ CAMBIO: Extraer .data
             val paginatedResponse = api.listNearby("Bearer $token", lat, lng, radiusKm)
             val response = paginatedResponse.data
 
@@ -142,7 +138,41 @@ class IncidentRepository(
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error confirmando: ${e.message}", e)
-            Result.failure(e)
+
+            // Extraer mensaje de error específico del backend
+            val errorMsg = when {
+                e.message?.contains("Ya confirmaste") == true -> "Ya confirmaste este incidente"
+                else -> e.message ?: "Error confirmando"
+            }
+
+            Result.failure(Exception(errorMsg))
+        }
+    }
+
+    // ==========================================
+    // ✅ NUEVO: DESCONFIRMAR INCIDENTE
+    // ==========================================
+
+    suspend fun unconfirmIncident(incidentId: String): Result<Unit> {
+        return try {
+            Log.d(TAG, "❌ Desconfirmando incidente: $incidentId")
+
+            val token = getToken() ?: return Result.failure(Exception("No autenticado"))
+
+            api.unconfirmIncident("Bearer $token", incidentId)
+
+            Log.d(TAG, "✅ Confirmación removida")
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error desconfirmando: ${e.message}", e)
+
+            val errorMsg = when {
+                e.message?.contains("No has confirmado") == true -> "No has confirmado este incidente"
+                else -> e.message ?: "Error removiendo confirmación"
+            }
+
+            Result.failure(Exception(errorMsg))
         }
     }
 
@@ -195,11 +225,8 @@ class IncidentRepository(
     // ==========================================
 
     private fun IncidentResp.toIncident(): Incident {
-        // Backend devuelve coordinates como [lng, lat]
         val lng = location.coordinates.getOrNull(0) ?: 0.0
         val lat = location.coordinates.getOrNull(1) ?: 0.0
-
-        Log.d(TAG, "  📍 Mapeando: $categoryGroup/$type en [$lng, $lat]")
 
         return Incident(
             id = _id,
