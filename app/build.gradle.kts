@@ -44,8 +44,13 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging")
     implementation("com.google.firebase:firebase-storage") // NUEVO: Para subir fotos
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
+    //test
+    testImplementation("junit:junit:4.13.2")
 
-
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.test:rules:1.5.0")
 
     // Google Maps + Location
     implementation("com.google.maps.android:maps-compose:4.3.3")
@@ -74,13 +79,16 @@ dependencies {
     implementation(libs.okhttp.core)
     implementation(libs.okhttp.logging)
 
+    // ✅ Logging de OkHttp
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
     // Accompanist Permissions
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")
 
-    // ✅ NUEVO: Coil para cargar imágenes en Compose
+    //  NUEVO: Coil para cargar imágenes en Compose
     implementation("io.coil-kt:coil-compose:2.5.0")
 
-    // ✅ NUEVO: CameraX (opcional, para control más fino de cámara)
+    //  NUEVO: CameraX (opcional, para control más fino de cámara)
     implementation("androidx.camera:camera-camera2:1.3.1")
     implementation("androidx.camera:camera-lifecycle:1.3.1")
     implementation("androidx.camera:camera-view:1.3.1")
