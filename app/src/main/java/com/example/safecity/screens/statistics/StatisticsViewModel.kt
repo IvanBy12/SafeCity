@@ -1,7 +1,5 @@
 package com.example.safecity.screens.statistics
 
-<<<<<<< Updated upstream
-=======
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
