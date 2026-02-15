@@ -72,17 +72,33 @@ data class StatsResponse(
     val byType: Map<String, Int>
 )
 
+// Respuesta genérica de votación
+data class VoteResponse(
+    val success: Boolean,
+    val message: String?,
+    val error: String?,
+    val data: VoteData?
+)
+
+data class VoteData(
+    val validationScore: Int,
+    val votedTrue: Int,
+    val votedFalse: Int,
+    val verified: Boolean,
+    val flaggedFalse: Boolean,
+    val status: String
+)
+
 // ==========================================
 // API INTERFACE
 // ==========================================
 
 interface SafeCityApi {
 
-    // ✅ ACTUALIZADO: Ahora devuelve PaginatedIncidentsResponse
     @GET("incidents")
     suspend fun listIncidents(
         @Header("Authorization") auth: String
-    ): PaginatedIncidentsResponse  // Cambio aquí
+    ): PaginatedIncidentsResponse
 
     @GET("incidents/near")
     suspend fun listNearby(
@@ -109,17 +125,43 @@ interface SafeCityApi {
         @Body request: CreateIncidentReq
     ): IncidentResp
 
+    // ========================================
+    // NUEVO SISTEMA DE VALIDACIÓN
+    // ========================================
+
+    @PUT("incidents/{id}/vote/true")
+    suspend fun voteTrue(
+        @Header("Authorization") auth: String,
+        @Path("id") id: String
+    ): VoteResponse
+
+    @PUT("incidents/{id}/vote/false")
+    suspend fun voteFalse(
+        @Header("Authorization") auth: String,
+        @Path("id") id: String
+    ): VoteResponse
+
+    @DELETE("incidents/{id}/vote")
+    suspend fun removeVote(
+        @Header("Authorization") auth: String,
+        @Path("id") id: String
+    ): VoteResponse
+
+    // ========================================
+    // COMPATIBILIDAD (mantener por ahora)
+    // ========================================
+
     @PUT("incidents/{id}/confirm")
     suspend fun confirmIncident(
         @Header("Authorization") auth: String,
         @Path("id") id: String
-    ): IncidentResp
+    ): VoteResponse
 
     @DELETE("incidents/{id}/confirm")
     suspend fun unconfirmIncident(
         @Header("Authorization") auth: String,
         @Path("id") id: String
-    ): IncidentResp
+    ): VoteResponse
 
     @POST("incidents/{id}/votes")
     suspend fun voteIncident(
