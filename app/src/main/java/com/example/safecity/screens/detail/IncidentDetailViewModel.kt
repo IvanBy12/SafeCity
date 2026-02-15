@@ -31,7 +31,7 @@ class IncidentDetailViewModel(
     private val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
 
     fun loadIncident(incidentId: String) {
-        Log.d(TAG, "🔍 Cargando incidente: $incidentId")
+        Log.d(TAG, "Cargando incidente: $incidentId")
 
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true, error = null) }

@@ -48,8 +48,7 @@ fun DashboardScreen(
 
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(
-            uiState.userLocation ?: LatLng(4.6097, -74.0817),
-            13f
+            uiState.userLocation ?: LatLng(4.6097, -74.0817), 13f
         )
     }
 
@@ -58,25 +57,15 @@ fun DashboardScreen(
             try {
                 val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
                 @SuppressLint("MissingPermission")
-                val location = fusedLocationClient.getCurrentLocation(
-                    Priority.PRIORITY_HIGH_ACCURACY,
-                    null
-                ).await()
-
+                val location = fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null).await()
                 location?.let {
                     viewModel.updateUserLocation(it)
-                    cameraPositionState.move(
-                        CameraUpdateFactory.newLatLngZoom(
-                            LatLng(it.latitude, it.longitude),
-                            15f
-                        )
-                    )
+                    cameraPositionState.move(CameraUpdateFactory.newLatLngZoom(LatLng(it.latitude, it.longitude), 15f))
                 }
             } catch (_: Exception) { }
         }
     }
 
-    // Bottom Sheet
     val sheetState = rememberModalBottomSheetState()
     var showBottomSheet by remember { mutableStateOf(false) }
 
@@ -84,10 +73,8 @@ fun DashboardScreen(
         showBottomSheet = uiState.selectedIncident != null
     }
 
-    // Estado del menú desplegable de filtros
     var filtersExpanded by remember { mutableStateOf(false) }
 
-    // Texto del botón según filtros activos
     val activeFilterLabel = remember(uiState.filterType, uiState.showVerifiedOnly) {
         val parts = mutableListOf<String>()
         when (uiState.filterType) {
@@ -302,40 +289,33 @@ fun DashboardScreen(
                 }
             }
 
-            // Loading
-            if (uiState.loading) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center))
-            }
+            if (uiState.loading) { CircularProgressIndicator(Modifier.align(Alignment.Center)) }
 
-            // Error
             uiState.error?.let { error ->
                 Snackbar(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(16.dp),
-                    action = {
-                        TextButton(onClick = { viewModel.clearError() }) { Text("OK") }
-                    }
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
+                    action = { TextButton(onClick = { viewModel.clearError() }) { Text("OK") } }
                 ) { Text(error) }
             }
         }
 
-        // Bottom Sheet
+        // ========================================
+        // BOTTOM SHEET CON NUEVO SISTEMA DE VOTOS
+        // ========================================
         if (showBottomSheet && uiState.selectedIncident != null) {
             ModalBottomSheet(
-                onDismissRequest = {
-                    showBottomSheet = false
-                    viewModel.selectIncident(null)
-                },
+                onDismissRequest = { showBottomSheet = false; viewModel.selectIncident(null) },
                 sheetState = sheetState
             ) {
                 uiState.selectedIncident?.let { selectedIncident ->
                     IncidentDetailsSheet(
                         incident = selectedIncident,
                         userLocation = uiState.userLocation,
-                        onConfirm = { viewModel.confirmIncident(it) },
-                        onUnconfirm = { viewModel.unconfirmIncident(it) },
-                        hasUserConfirmed = viewModel.hasUserConfirmed(selectedIncident),
+                        onVoteTrue = { viewModel.voteTrue(it) },
+                        onVoteFalse = { viewModel.voteFalse(it) },
+                        onRemoveVote = { viewModel.removeVote(it) },
+                        isOwner = viewModel.isOwner(selectedIncident),
+                        userVoteStatus = viewModel.getUserVoteStatus(selectedIncident),
                         calculateDistance = viewModel::calculateDistance
                     )
                 }
@@ -350,47 +330,21 @@ fun PermissionRequestScreen(
     permissionsState: MultiplePermissionsState,
     onRequestPermission: () -> Unit
 ) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Card(modifier = Modifier.padding(24.dp)) {
             Column(
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Icon(
-                    Icons.Filled.LocationOn,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-
-                Text(
-                    "Permisos de ubicación necesarios",
-                    style = MaterialTheme.typography.titleLarge
-                )
-
-                Text(
-                    "SafeCity necesita acceso a tu ubicación para mostrarte incidentes cercanos y permitirte crear reportes en tu área.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-
+                Icon(Icons.Filled.LocationOn, null, Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
+                Text("Permisos de ubicación necesarios", style = MaterialTheme.typography.titleLarge)
+                Text("SafeCity necesita acceso a tu ubicación para mostrarte incidentes cercanos.", style = MaterialTheme.typography.bodyMedium)
                 if (permissionsState.shouldShowRationale) {
-                    Text(
-                        "Parece que rechazaste los permisos antes. Si los aceptas, podremos mostrar tu ubicación en el mapa.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    Text("Parece que rechazaste los permisos antes.", style = MaterialTheme.typography.bodySmall)
                 }
-
-                Button(
-                    onClick = onRequestPermission,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Filled.LocationOn, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Conceder permisos")
+                Button(onClick = onRequestPermission, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Filled.LocationOn, null); Spacer(Modifier.width(8.dp)); Text("Conceder permisos")
                 }
             }
         }

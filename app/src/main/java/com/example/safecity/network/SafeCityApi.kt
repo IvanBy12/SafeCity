@@ -28,14 +28,13 @@ data class CommentRequest(
 // RESPONSE MODELS
 // ==========================================
 
-// ✅ NUEVO: Response con paginación
 data class PaginatedIncidentsResponse(
     val success: Boolean,
     val page: Int,
     val limit: Int,
     val total: Int,
     val count: Int,
-    val data: List<IncidentResp>  // Los incidentes están en "data"
+    val data: List<IncidentResp>
 )
 
 data class IncidentResp(
@@ -83,7 +82,7 @@ interface SafeCityApi {
         @Query("lat") lat: Double,
         @Query("lng") lng: Double,
         @Query("radius") radiusKm: Int = 5
-    ): PaginatedIncidentsResponse  // Y aquí
+    ): PaginatedIncidentsResponse
 
     @GET("incidents/stats")
     suspend fun getStats(

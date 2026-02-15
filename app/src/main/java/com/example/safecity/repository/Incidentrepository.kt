@@ -21,43 +21,40 @@ class IncidentRepository(
     private val TAG = "IncidentRepository"
 
     // ==========================================
-    // LISTAR INCIDENTES CON POLLING AUTOMÁTICO
+    // LISTAR INCIDENTES CON POLLING
     // ==========================================
 
     fun getIncidentsFlow(): Flow<List<Incident>> = flow {
-        while (true) {  // ✅ Loop infinito para polling
+        while (true) {
             try {
-                Log.d(TAG, "🔄 Actualizando incidentes...")
+                Log.d(TAG, "Actualizando incidentes...")
 
                 val token = TokenStore.get() ?: run {
-                    Log.d(TAG, "⚠️ No hay token en cache, refrescando...")
+                    Log.d(TAG, "No hay token en cache, refrescando...")
                     TokenStore.refresh()
                     TokenStore.get()
                 }
 
                 if (token.isNullOrBlank()) {
-                    Log.e(TAG, "❌ Token vacío después de refresh")
+                    Log.e(TAG, "Token vacio despues de refresh")
                     emit(emptyList())
-                    delay(30000) // Esperar 30s antes de reintentar
+                    delay(30000)
                     continue
                 }
 
                 val paginatedResponse = api.listIncidents("Bearer $token")
                 val response = paginatedResponse.data
 
-                Log.d(TAG, "✅ Response recibida: ${response.size} incidentes")
+                Log.d(TAG, "Response recibida: ${response.size} incidentes")
 
                 val incidents = response.map { it.toIncident() }
-
                 emit(incidents)
-
-                // ✅ Esperar 10 segundos antes de la próxima actualización
                 delay(10000)
 
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Error cargando incidentes: ${e.message}", e)
+                Log.e(TAG, "Error cargando incidentes: ${e.message}", e)
                 emit(emptyList())
-                delay(30000) // En caso de error, esperar 30s
+                delay(30000)
             }
         }
     }
@@ -66,25 +63,14 @@ class IncidentRepository(
     // BUSCAR CERCANOS
     // ==========================================
 
-    suspend fun getNearbyIncidents(
-        lat: Double,
-        lng: Double,
-        radiusKm: Int = 5
-    ): Result<List<Incident>> {
+    suspend fun getNearbyIncidents(lat: Double, lng: Double, radiusKm: Int = 5): Result<List<Incident>> {
         return try {
-            Log.d(TAG, "🔍 Buscando incidentes cercanos: lat=$lat, lng=$lng, radius=$radiusKm")
-
             val token = getToken() ?: return Result.failure(Exception("No autenticado"))
-
             val paginatedResponse = api.listNearby("Bearer $token", lat, lng, radiusKm)
-            val response = paginatedResponse.data
-
-            Log.d(TAG, "✅ Cercanos encontrados: ${response.size}")
-
-            val incidents = response.map { it.toIncident() }
+            val incidents = paginatedResponse.data.map { it.toIncident() }
             Result.success(incidents)
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error buscando cercanos: ${e.message}", e)
+            Log.e(TAG, "Error buscando cercanos: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -95,10 +81,7 @@ class IncidentRepository(
 
     suspend fun createIncident(incident: Incident): Result<String> {
         return try {
-            val user = auth.currentUser ?: return Result.failure(Exception("No autenticado"))
             val token = getToken() ?: return Result.failure(Exception("No se pudo obtener token"))
-
-            Log.d(TAG, "📝 Creando incidente: ${incident.type} - ${incident.category}")
 
             val request = CreateIncidentReq(
                 categoryGroup = incident.type.name,
@@ -183,12 +166,10 @@ class IncidentRepository(
     suspend fun addComment(incidentId: String, text: String): Result<Unit> {
         return try {
             val token = getToken() ?: return Result.failure(Exception("No autenticado"))
-
-            val comment = CommentRequest(text)
-            api.addComment("Bearer $token", incidentId, comment)
+            api.addComment("Bearer $token", incidentId, CommentRequest(text))
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error agregando comentario: ${e.message}", e)
+            Log.e(TAG, "Error agregando comentario: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -200,11 +181,10 @@ class IncidentRepository(
     suspend fun deleteIncident(incidentId: String): Result<Unit> {
         return try {
             val token = getToken() ?: return Result.failure(Exception("No autenticado"))
-
             api.deleteIncident("Bearer $token", incidentId)
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error eliminando: ${e.message}", e)
+            Log.e(TAG, "Error eliminando: ${e.message}", e)
             Result.failure(e)
         }
     }

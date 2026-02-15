@@ -23,7 +23,6 @@ enum class IncidentType {
     INFRAESTRUCTURA
 }
 
-// Categorías por tipo
 object IncidentCategories {
     val SEGURIDAD = listOf(
         "Robo",

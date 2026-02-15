@@ -20,9 +20,9 @@ data class DashboardUiState(
     val userLocation: LatLng? = null,
     val filterType: IncidentType? = null,
     val showVerifiedOnly: Boolean = false,
-    val loading: Boolean = false,  // ✅ Cambiado a false para no mostrar loading inicial
+    val loading: Boolean = false,
     val error: String? = null,
-    val currentUserId: String? = null  // ✅ NUEVO: Para saber si el usuario ya confirmó
+    val currentUserId: String? = null
 )
 
 class DashboardViewModel(
@@ -32,36 +32,26 @@ class DashboardViewModel(
     private val TAG = "DashboardViewModel"
 
     private val _uiState = MutableStateFlow(DashboardUiState(
-        currentUserId = FirebaseAuth.getInstance().currentUser?.uid  // ✅ Obtener userId
+        currentUserId = FirebaseAuth.getInstance().currentUser?.uid
     ))
     val uiState = _uiState.asStateFlow()
 
     init {
-        Log.d(TAG, "🚀 DashboardViewModel inicializado")
+        Log.d(TAG, "DashboardViewModel inicializado")
         observeIncidents()
     }
 
-    // ==========================================
-    // OBSERVAR INCIDENTES (con polling automático)
-    // ==========================================
-
     private fun observeIncidents() {
-        Log.d(TAG, "👀 Iniciando observación de incidentes con polling...")
-
         viewModelScope.launch {
             repository.getIncidentsFlow()
                 .catch { e ->
-                    Log.e(TAG, "❌ Error en flow: ${e.message}", e)
+                    Log.e(TAG, "Error en flow: ${e.message}", e)
                     _uiState.update { it.copy(error = e.message, loading = false) }
                 }
                 .collect { incidents ->
-                    Log.d(TAG, "📦 Flow emitió: ${incidents.size} incidentes")
-
+                    Log.d(TAG, "Flow emitio: ${incidents.size} incidentes")
                     _uiState.update { state ->
                         val filtered = applyFilters(incidents, state)
-
-                        Log.d(TAG, "🔍 Después de filtros: ${filtered.size} incidentes")
-
                         state.copy(
                             incidents = incidents,
                             filteredIncidents = filtered,
@@ -72,20 +62,11 @@ class DashboardViewModel(
         }
     }
 
-    // ==========================================
-    // BUSCAR INCIDENTES CERCANOS
-    // ==========================================
-
     fun loadNearbyIncidents(lat: Double, lng: Double, radiusKm: Int = 5) {
-        Log.d(TAG, "📍 Buscando cercanos: lat=$lat, lng=$lng, radius=$radiusKm km")
-
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true) }
-
             repository.getNearbyIncidents(lat, lng, radiusKm)
                 .onSuccess { incidents ->
-                    Log.d(TAG, "✅ Cercanos encontrados: ${incidents.size}")
-
                     _uiState.update { state ->
                         state.copy(
                             incidents = incidents,
@@ -125,8 +106,6 @@ class DashboardViewModel(
     }
 
     fun toggleVerifiedFilter() {
-        Log.d(TAG, "✅ Alternando filtro de verificados")
-
         _uiState.update { state ->
             val newValue = !state.showVerifiedOnly
             state.copy(
@@ -136,38 +115,19 @@ class DashboardViewModel(
         }
     }
 
-    // ==========================================
-    // SELECCIONAR INCIDENTE
-    // ==========================================
-
     fun selectIncident(incident: Incident?) {
-        Log.d(TAG, "👆 Incidente seleccionado: ${incident?.id ?: "ninguno"}")
         _uiState.update { it.copy(selectedIncident = incident) }
     }
 
-    // ==========================================
-    // UBICACIÓN DEL USUARIO
-    // ==========================================
-
     fun updateUserLocation(location: Location) {
-        Log.d(TAG, "📍 Ubicación actualizada: ${location.latitude}, ${location.longitude}")
         _uiState.update {
             it.copy(userLocation = LatLng(location.latitude, location.longitude))
         }
     }
 
-    // ==========================================
-    // CALCULAR DISTANCIA
-    // ==========================================
-
     fun calculateDistance(from: LatLng, to: GeoPoint): String {
         val results = FloatArray(1)
-        Location.distanceBetween(
-            from.latitude, from.longitude,
-            to.latitude, to.longitude,
-            results
-        )
-
+        Location.distanceBetween(from.latitude, from.longitude, to.latitude, to.longitude, results)
         val meters = results[0]
         return when {
             meters < 1000 -> "${meters.toInt()} m"
@@ -273,14 +233,5 @@ class DashboardViewModel(
 
     fun clearError() {
         _uiState.update { it.copy(error = null) }
-    }
-
-    // ==========================================
-    // ✅ NUEVO: VERIFICAR SI EL USUARIO YA CONFIRMÓ
-    // ==========================================
-
-    fun hasUserConfirmed(incident: Incident): Boolean {
-        val userId = _uiState.value.currentUserId ?: return false
-        return incident.confirmedBy.contains(userId)
     }
 }
