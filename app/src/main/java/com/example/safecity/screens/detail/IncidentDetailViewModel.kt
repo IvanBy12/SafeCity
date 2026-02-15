@@ -16,6 +16,8 @@ data class IncidentDetailUiState(
     val loading: Boolean = false,
     val error: String? = null,
     val isOwner: Boolean = false,
+    val userVoteStatus: String = "none",  // "none" | "true" | "false"
+    // Compatibilidad
     val hasUserConfirmed: Boolean = false
 )
 
@@ -41,22 +43,15 @@ class IncidentDetailViewModel(
                     val incident = incidents.find { it.id == incidentId }
 
                     if (incident == null) {
-                        Log.e(TAG, "❌ Incidente no encontrado: $incidentId")
-                        _uiState.update {
-                            it.copy(
-                                loading = false,
-                                error = "Incidente no encontrado"
-                            )
-                        }
+                        _uiState.update { it.copy(loading = false, error = "Incidente no encontrado") }
                     } else {
-                        Log.d(TAG, "✅ Incidente cargado: ${incident.category}")
-
                         _uiState.update {
                             it.copy(
                                 incident = incident,
                                 loading = false,
                                 isOwner = incident.userId == currentUserId,
-                                hasUserConfirmed = incident.confirmedBy.contains(currentUserId)
+                                userVoteStatus = incident.userVoteStatus,
+                                hasUserConfirmed = incident.userVoteStatus == "true"
                             )
                         }
                     }
@@ -66,59 +61,74 @@ class IncidentDetailViewModel(
         }
     }
 
-    fun confirmIncident() {
-        val incidentId = _uiState.value.incident?.id ?: return
+    // ========================================
+    // NUEVO: Votar verdadero
+    // ========================================
 
-        Log.d(TAG, "✅ Confirmando incidente: $incidentId")
+    fun voteTrue() {
+        val incidentId = _uiState.value.incident?.id ?: return
+        Log.d(TAG, "Votando verdadero: $incidentId")
 
         viewModelScope.launch {
-            repository.confirmIncident(incidentId)
-                .onSuccess {
-                    Log.d(TAG, "✅ Confirmación exitosa")
-                    loadIncident(incidentId)
-                }
+            repository.voteTrue(incidentId)
+                .onSuccess { loadIncident(incidentId) }
                 .onFailure { e ->
-                    Log.e(TAG, "❌ Error confirmando: ${e.message}", e)
+                    Log.e(TAG, "Error: ${e.message}", e)
                     _uiState.update { it.copy(error = e.message) }
                 }
         }
     }
 
-    fun unconfirmIncident() {
-        val incidentId = _uiState.value.incident?.id ?: return
+    // ========================================
+    // NUEVO: Votar falso
+    // ========================================
 
-        Log.d(TAG, "❌ Desconfirmando incidente: $incidentId")
+    fun voteFalse() {
+        val incidentId = _uiState.value.incident?.id ?: return
+        Log.d(TAG, "Votando falso: $incidentId")
 
         viewModelScope.launch {
-            repository.unconfirmIncident(incidentId)
-                .onSuccess {
-                    Log.d(TAG, "✅ Confirmación removida")
-                    loadIncident(incidentId)
-                }
+            repository.voteFalse(incidentId)
+                .onSuccess { loadIncident(incidentId) }
                 .onFailure { e ->
-                    Log.e(TAG, "❌ Error desconfirmando: ${e.message}", e)
+                    Log.e(TAG, "Error: ${e.message}", e)
                     _uiState.update { it.copy(error = e.message) }
                 }
         }
     }
+
+    // ========================================
+    // NUEVO: Quitar voto
+    // ========================================
+
+    fun removeVote() {
+        val incidentId = _uiState.value.incident?.id ?: return
+        Log.d(TAG, "Removiendo voto: $incidentId")
+
+        viewModelScope.launch {
+            repository.removeVote(incidentId)
+                .onSuccess { loadIncident(incidentId) }
+                .onFailure { e ->
+                    Log.e(TAG, "Error: ${e.message}", e)
+                    _uiState.update { it.copy(error = e.message) }
+                }
+        }
+    }
+
+    // ========================================
+    // COMPATIBILIDAD
+    // ========================================
+
+    fun confirmIncident() = voteTrue()
+    fun unconfirmIncident() = removeVote()
 
     fun deleteIncident() {
         val incidentId = _uiState.value.incident?.id ?: return
-
-        if (!_uiState.value.isOwner) {
-            Log.e(TAG, "❌ No autorizado para eliminar")
-            return
-        }
-
-        Log.d(TAG, "🗑️ Eliminando incidente: $incidentId")
+        if (!_uiState.value.isOwner) return
 
         viewModelScope.launch {
             repository.deleteIncident(incidentId)
-                .onSuccess {
-                    Log.d(TAG, "✅ Incidente eliminado")
-                }
                 .onFailure { e ->
-                    Log.e(TAG, "❌ Error eliminando: ${e.message}", e)
                     _uiState.update { it.copy(error = e.message) }
                 }
         }
