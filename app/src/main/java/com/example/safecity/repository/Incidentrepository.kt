@@ -94,70 +94,82 @@ class IncidentRepository(
             )
 
             val response = api.createIncident("Bearer $token", request)
-
-            Log.d(TAG, "✅ Incidente creado: ${response._id}")
-
             Result.success(response._id)
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error creando incidente: ${e.message}", e)
+            Log.e(TAG, "Error creando incidente: ${e.message}", e)
             Result.failure(e)
         }
     }
 
-    // ==========================================
-    // CONFIRMAR INCIDENTE
-    // ==========================================
+    // ========================================
+    // NUEVO: VOTAR COMO VERDADERO
+    // ========================================
 
-    suspend fun confirmIncident(incidentId: String): Result<Unit> {
+    suspend fun voteTrue(incidentId: String): Result<Unit> {
         return try {
-            Log.d(TAG, "✅ Confirmando incidente: $incidentId")
-
             val token = getToken() ?: return Result.failure(Exception("No autenticado"))
+            val response = api.voteTrue("Bearer $token", incidentId)
 
-            api.confirmIncident("Bearer $token", incidentId)
-
-            Log.d(TAG, "✅ Incidente confirmado")
-
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Error confirmando: ${e.message}", e)
-
-            // Extraer mensaje de error específico del backend
-            val errorMsg = when {
-                e.message?.contains("Ya confirmaste") == true -> "Ya confirmaste este incidente"
-                else -> e.message ?: "Error confirmando"
+            if (response.success) {
+                Log.d(TAG, "Voto verdadero registrado. Score: ${response.data?.validationScore}")
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(response.error ?: "Error votando"))
             }
-
-            Result.failure(Exception(errorMsg))
+        } catch (e: Exception) {
+            Log.e(TAG, "Error votando verdadero: ${e.message}", e)
+            Result.failure(e)
         }
     }
 
-    // ==========================================
-    // ✅ NUEVO: DESCONFIRMAR INCIDENTE
-    // ==========================================
+    // ========================================
+    // NUEVO: VOTAR COMO FALSO
+    // ========================================
 
-    suspend fun unconfirmIncident(incidentId: String): Result<Unit> {
+    suspend fun voteFalse(incidentId: String): Result<Unit> {
         return try {
-            Log.d(TAG, "❌ Desconfirmando incidente: $incidentId")
-
             val token = getToken() ?: return Result.failure(Exception("No autenticado"))
+            val response = api.voteFalse("Bearer $token", incidentId)
 
-            api.unconfirmIncident("Bearer $token", incidentId)
-
-            Log.d(TAG, "✅ Confirmación removida")
-
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Error desconfirmando: ${e.message}", e)
-
-            val errorMsg = when {
-                e.message?.contains("No has confirmado") == true -> "No has confirmado este incidente"
-                else -> e.message ?: "Error removiendo confirmación"
+            if (response.success) {
+                Log.d(TAG, "Voto falso registrado. Score: ${response.data?.validationScore}")
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(response.error ?: "Error votando"))
             }
-
-            Result.failure(Exception(errorMsg))
+        } catch (e: Exception) {
+            Log.e(TAG, "Error votando falso: ${e.message}", e)
+            Result.failure(e)
         }
     }
+
+    // ========================================
+    // NUEVO: QUITAR VOTO
+    // ========================================
+
+    suspend fun removeVote(incidentId: String): Result<Unit> {
+        return try {
+            val token = getToken() ?: return Result.failure(Exception("No autenticado"))
+            val response = api.removeVote("Bearer $token", incidentId)
+
+            if (response.success) {
+                Log.d(TAG, "Voto removido. Score: ${response.data?.validationScore}")
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(response.error ?: "Error removiendo voto"))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error removiendo voto: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    // ========================================
+    // COMPATIBILIDAD: confirm/unconfirm
+    // ========================================
+
+    suspend fun confirmIncident(incidentId: String): Result<Unit> = voteTrue(incidentId)
+    suspend fun unconfirmIncident(incidentId: String): Result<Unit> = removeVote(incidentId)
 
     // ==========================================
     // AGREGAR COMENTARIO
@@ -201,12 +213,24 @@ class IncidentRepository(
     }
 
     // ==========================================
-    // MAPPERS: Backend Response → App Model
+    // MAPPER: Backend Response → App Model
     // ==========================================
 
     private fun IncidentResp.toIncident(): Incident {
         val lng = location.coordinates.getOrNull(0) ?: 0.0
         val lat = location.coordinates.getOrNull(1) ?: 0.0
+        val currentUserId = auth.currentUser?.uid ?: ""
+
+        val votedTrueList = votedTrue ?: emptyList()
+        val votedFalseList = votedFalse ?: emptyList()
+        val score = validationScore ?: (votedTrueList.size - votedFalseList.size)
+
+        // Determinar el voto del usuario actual
+        val userVote = when {
+            votedTrueList.contains(currentUserId) -> "true"
+            votedFalseList.contains(currentUserId) -> "false"
+            else -> "none"
+        }
 
         return Incident(
             id = _id,
@@ -223,9 +247,18 @@ class IncidentRepository(
             userId = reporterUid,
             userName = "Usuario",
             timestamp = parseTimestamp(createdAt),
-            verified = confirmationsCount >= 3,
+            // Nuevo sistema
+            validationScore = score,
+            votedTrueCount = votedTrueList.size,
+            votedFalseCount = votedFalseList.size,
+            verified = verified ?: (score >= 3),
+            flaggedFalse = flaggedFalse ?: (score <= -5),
+            userVoteStatus = userVote,
+            // Compatibilidad
             confirmations = confirmationsCount,
-            confirmedBy = confirmedBy ?: emptyList()
+            confirmedBy = confirmedBy ?: emptyList(),
+            votedTrue = votedTrueList,
+            votedFalse = votedFalseList
         )
     }
 
