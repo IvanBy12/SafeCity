@@ -76,27 +76,22 @@ class DashboardViewModel(
                     }
                 }
                 .onFailure { e ->
-                    Log.e(TAG, "❌ Error buscando cercanos: ${e.message}", e)
                     _uiState.update { it.copy(error = e.message, loading = false) }
                 }
         }
     }
 
-    // ==========================================
-    // APLICAR FILTROS
-    // ==========================================
-
     private fun applyFilters(incidents: List<Incident>, state: DashboardUiState): List<Incident> {
         return incidents.filter { incident ->
             val matchesType = state.filterType == null || incident.type == state.filterType
             val matchesVerified = !state.showVerifiedOnly || incident.verified
-            matchesType && matchesVerified
+            // No mostrar reportes marcados como falsos
+            val notFlagged = !incident.flaggedFalse
+            matchesType && matchesVerified && notFlagged
         }
     }
 
     fun filterByType(type: IncidentType?) {
-        Log.d(TAG, "🏷️ Filtrando por tipo: ${type?.name ?: "Todos"}")
-
         _uiState.update { state ->
             state.copy(
                 filterType = type,
@@ -135,96 +130,111 @@ class DashboardViewModel(
         }
     }
 
-    // ==========================================
-    // CONFIRMAR INCIDENTE
-    // ==========================================
+    // ========================================
+    // NUEVO: VOTAR VERDADERO
+    // ========================================
 
-    fun confirmIncident(incidentId: String) {
-        Log.d(TAG, "✅ Confirmando incidente: $incidentId")
-
+    fun voteTrue(incidentId: String) {
+        Log.d(TAG, "Votando verdadero: $incidentId")
         viewModelScope.launch {
-            repository.confirmIncident(incidentId)
-                .onSuccess {
-                    Log.d(TAG, "✅ Confirmación exitosa")
-                    // El polling automático actualizará la UI
-                }
+            repository.voteTrue(incidentId)
+                .onSuccess { Log.d(TAG, "Voto verdadero exitoso") }
                 .onFailure { e ->
-                    Log.e(TAG, "❌ Error confirmando: ${e.message}", e)
+                    Log.e(TAG, "Error votando verdadero: ${e.message}", e)
                     _uiState.update { it.copy(error = e.message) }
                 }
         }
     }
 
-    // ==========================================
-    // ✅ NUEVO: DESCONFIRMAR INCIDENTE
-    // ==========================================
+    // ========================================
+    // NUEVO: VOTAR FALSO
+    // ========================================
 
-    fun unconfirmIncident(incidentId: String) {
-        Log.d(TAG, "❌ Desconfirmando incidente: $incidentId")
-
+    fun voteFalse(incidentId: String) {
+        Log.d(TAG, "Votando falso: $incidentId")
         viewModelScope.launch {
-            repository.unconfirmIncident(incidentId)
-                .onSuccess {
-                    Log.d(TAG, "✅ Confirmación removida")
-                    // El polling automático actualizará la UI
-                }
+            repository.voteFalse(incidentId)
+                .onSuccess { Log.d(TAG, "Voto falso exitoso") }
                 .onFailure { e ->
-                    Log.e(TAG, "❌ Error desconfirmando: ${e.message}", e)
+                    Log.e(TAG, "Error votando falso: ${e.message}", e)
                     _uiState.update { it.copy(error = e.message) }
                 }
         }
     }
 
-    // ==========================================
-    // CREAR INCIDENTE
-    // ==========================================
+    // ========================================
+    // NUEVO: QUITAR VOTO
+    // ========================================
+
+    fun removeVote(incidentId: String) {
+        Log.d(TAG, "Removiendo voto: $incidentId")
+        viewModelScope.launch {
+            repository.removeVote(incidentId)
+                .onSuccess { Log.d(TAG, "Voto removido exitosamente") }
+                .onFailure { e ->
+                    Log.e(TAG, "Error removiendo voto: ${e.message}", e)
+                    _uiState.update { it.copy(error = e.message) }
+                }
+        }
+    }
+
+    // ========================================
+    // COMPATIBILIDAD
+    // ========================================
+
+    fun confirmIncident(incidentId: String) = voteTrue(incidentId)
+    fun unconfirmIncident(incidentId: String) = removeVote(incidentId)
+
+    // ========================================
+    // HELPERS DE ESTADO DEL VOTO
+    // ========================================
+
+    fun getUserVoteStatus(incident: Incident): String {
+        return incident.userVoteStatus
+    }
+
+    fun hasUserConfirmed(incident: Incident): Boolean {
+        return incident.userVoteStatus == "true"
+    }
+
+    fun hasUserFlagged(incident: Incident): Boolean {
+        return incident.userVoteStatus == "false"
+    }
+
+    fun isOwner(incident: Incident): Boolean {
+        return incident.userId == _uiState.value.currentUserId
+    }
+
+    // ========================================
+    // CREAR / ELIMINAR / COMENTAR
+    // ========================================
 
     fun createIncident(incident: Incident, onSuccess: () -> Unit) {
-        Log.d(TAG, "📝 Creando incidente: ${incident.type} - ${incident.category}")
-
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true) }
-
             repository.createIncident(incident)
-                .onSuccess { id ->
-                    Log.d(TAG, "✅ Incidente creado: $id")
+                .onSuccess {
                     _uiState.update { it.copy(loading = false) }
-                    // El polling automático agregará el nuevo incidente
                     onSuccess()
                 }
                 .onFailure { e ->
-                    Log.e(TAG, "❌ Error creando: ${e.message}", e)
                     _uiState.update { it.copy(error = e.message, loading = false) }
                 }
         }
     }
 
-    // ==========================================
-    // AGREGAR COMENTARIO
-    // ==========================================
-
     fun addComment(incidentId: String, text: String) {
         viewModelScope.launch {
             repository.addComment(incidentId, text)
-                .onSuccess {
-                    // El polling actualizará
-                }
                 .onFailure { e ->
                     _uiState.update { it.copy(error = e.message) }
                 }
         }
     }
 
-    // ==========================================
-    // ELIMINAR INCIDENTE
-    // ==========================================
-
     fun deleteIncident(incidentId: String) {
         viewModelScope.launch {
             repository.deleteIncident(incidentId)
-                .onSuccess {
-                    // El polling removerá el incidente
-                }
                 .onFailure { e ->
                     _uiState.update { it.copy(error = e.message) }
                 }
