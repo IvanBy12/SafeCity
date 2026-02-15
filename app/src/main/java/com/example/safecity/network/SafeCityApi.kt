@@ -47,8 +47,16 @@ data class IncidentResp(
     val address: String?,
     val reporterUid: String,
     val status: String,
+    // Nuevo sistema de validación
+    val validationScore: Int?,
+    val votedTrue: List<String>?,
+    val votedFalse: List<String>?,
+    val verified: Boolean?,
+    val flaggedFalse: Boolean?,
+    // Compatibilidad
     val confirmationsCount: Int,
-    val confirmedBy: List<String>?, //FIX: Hacer nullable
+    val confirmedBy: List<String>?,
+    val commentsCount: Int?,
     val createdAt: String,
     val updatedAt: String
 )

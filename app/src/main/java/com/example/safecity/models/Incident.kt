@@ -13,9 +13,22 @@ data class Incident(
     val userId: String = "",
     val userName: String = "",
     val timestamp: Long = System.currentTimeMillis(),
-    val verified: Boolean = false,
+
+    // ========================================
+    // NUEVO SISTEMA DE VALIDACIÓN
+    // ========================================
+    val validationScore: Int = 0,        // neto = votedTrue - votedFalse
+    val votedTrueCount: Int = 0,         // cantidad de votos "verdadero"
+    val votedFalseCount: Int = 0,        // cantidad de votos "falso"
+    val verified: Boolean = false,        // true si validationScore >= 3
+    val flaggedFalse: Boolean = false,    // true si validationScore <= -5
+    val userVoteStatus: String = "none",  // "none" | "true" | "false"
+
+    // Compatibilidad
     val confirmations: Int = 0,
-    val confirmedBy: List<String> = emptyList()
+    val confirmedBy: List<String> = emptyList(),
+    val votedTrue: List<String> = emptyList(),
+    val votedFalse: List<String> = emptyList()
 )
 
 enum class IncidentType {
