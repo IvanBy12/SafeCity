@@ -1,8 +1,8 @@
 package com.example.safecity.screens.detail
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -11,22 +11,21 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.example.safecity.models.Comment
 import com.example.safecity.models.Incident
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import java.text.SimpleDateFormat
 import java.util.*
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,8 +36,12 @@ fun IncidentDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var commentText by remember { mutableStateOf("") }
 
-    LaunchedEffect(incidentId) { viewModel.loadIncident(incidentId) }
+    LaunchedEffect(incidentId) {
+        viewModel.loadIncident(incidentId)
+        viewModel.loadComments(incidentId)
+    }
 
     Scaffold(
         topBar = {
@@ -51,6 +54,60 @@ fun IncidentDetailScreen(
                     }
                 }
             )
+        },
+        // Input de comentario fijo al fondo
+        bottomBar = {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                tonalElevation = 2.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = commentText,
+                        onValueChange = { commentText = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Agrega un comentario público") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(24.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        enabled = !uiState.commentSending
+                    )
+
+                    IconButton(
+                        onClick = {
+                            if (commentText.isNotBlank()) {
+                                viewModel.sendComment(incidentId, commentText.trim())
+                                commentText = ""
+                            }
+                        },
+                        enabled = commentText.isNotBlank() && !uiState.commentSending
+                    ) {
+                        if (uiState.commentSending) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(
+                                Icons.Filled.Send,
+                                contentDescription = "Enviar comentario",
+                                tint = if (commentText.isNotBlank())
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            )
+                        }
+                    }
+                }
+            }
         }
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
@@ -71,7 +128,9 @@ fun IncidentDetailScreen(
                         userVoteStatus = uiState.userVoteStatus,
                         onVoteTrue = { viewModel.voteTrue() },
                         onVoteFalse = { viewModel.voteFalse() },
-                        onRemoveVote = { viewModel.removeVote() }
+                        onRemoveVote = { viewModel.removeVote() },
+                        comments = uiState.comments,
+                        commentsLoading = uiState.commentsLoading
                     )
                 }
             }
@@ -102,60 +161,35 @@ private fun IncidentDetailContent(
     userVoteStatus: String,
     onVoteTrue: () -> Unit,
     onVoteFalse: () -> Unit,
-    onRemoveVote: () -> Unit
+    onRemoveVote: () -> Unit,
+    comments: List<Comment>,
+    commentsLoading: Boolean
 ) {
-    var showFullScreenPhoto by remember { mutableStateOf(false) }
-
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
 
-        // ========================================
-        // FOTO DEL INCIDENTE (si existe)
-        // ========================================
-        if (!incident.imageUrl.isNullOrBlank()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(250.dp)
-                    .clickable { showFullScreenPhoto = true }
-            ) {
-                AsyncImage(
-                    model = incident.imageUrl,
-                    contentDescription = "Foto del incidente",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
+        // FOTO
+        val photoUrl = incident.firstPhoto
+        if (!photoUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = photoUrl,
+                contentDescription = "Foto del incidente",
+                modifier = Modifier.fillMaxWidth().height(240.dp),
+                contentScale = ContentScale.Crop
+            )
+        }
 
-                // Indicador de "toca para ampliar"
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(8.dp),
-                    shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
-                ) {
-                    Row(
-                        Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Filled.ZoomIn, null, Modifier.size(16.dp))
-                        Text("Ampliar", style = MaterialTheme.typography.labelSmall)
-                    }
-                }
-            }
-        } else {
-            // Mapa si no hay foto
-            val markerPosition = LatLng(incident.location.latitude, incident.location.longitude)
-            val cameraPositionState = rememberCameraPositionState {
-                position = CameraPosition.fromLatLngZoom(markerPosition, 15f)
-            }
-            Box(Modifier.fillMaxWidth().height(200.dp)) {
-                GoogleMap(
-                    modifier = Modifier.fillMaxSize(),
-                    cameraPositionState = cameraPositionState,
-                    uiSettings = MapUiSettings(zoomControlsEnabled = false, scrollGesturesEnabled = false, zoomGesturesEnabled = false)
-                ) { Marker(state = MarkerState(position = markerPosition), title = incident.category) }
-            }
+        // MAPA
+        val markerPosition = LatLng(incident.location.latitude, incident.location.longitude)
+        val cameraPositionState = rememberCameraPositionState {
+            position = CameraPosition.fromLatLngZoom(markerPosition, 15f)
+        }
+
+        Box(Modifier.fillMaxWidth().height(180.dp)) {
+            GoogleMap(
+                modifier = Modifier.fillMaxSize(),
+                cameraPositionState = cameraPositionState,
+                uiSettings = MapUiSettings(zoomControlsEnabled = false, scrollGesturesEnabled = false, zoomGesturesEnabled = false)
+            ) { Marker(state = MarkerState(position = markerPosition), title = incident.category) }
         }
 
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -165,6 +199,7 @@ private fun IncidentDetailContent(
                     Text(incident.category, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     Text(incident.type.name.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 }
+
                 when {
                     incident.flaggedFalse -> {
                         Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.medium) {
@@ -185,52 +220,37 @@ private fun IncidentDetailContent(
                 }
             }
 
-            Divider()
+            HorizontalDivider()
 
-            // Descripción
             if (incident.description.isNotBlank()) {
                 DetailSection(Icons.Filled.Description, "Descripción") {
                     Text(incident.description, style = MaterialTheme.typography.bodyLarge)
                 }
             }
 
-            // Ubicación
             DetailSection(Icons.Filled.LocationOn, "Ubicación") {
                 Text(incident.address.ifBlank { "Sin dirección" }, style = MaterialTheme.typography.bodyMedium)
             }
 
-            // Fecha
             DetailSection(Icons.Filled.AccessTime, "Fecha") {
                 Text(formatTimestamp(incident.timestamp), style = MaterialTheme.typography.bodyMedium)
             }
 
-            // Si hay foto, mostrar también mini-mapa
-            if (!incident.imageUrl.isNullOrBlank()) {
-                val markerPosition = LatLng(incident.location.latitude, incident.location.longitude)
-                val cameraPositionState = rememberCameraPositionState {
-                    position = CameraPosition.fromLatLngZoom(markerPosition, 15f)
-                }
-                Text("Ubicación en mapa", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(150.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                ) {
-                    GoogleMap(
-                        modifier = Modifier.fillMaxSize(),
-                        cameraPositionState = cameraPositionState,
-                        uiSettings = MapUiSettings(zoomControlsEnabled = false, scrollGesturesEnabled = false, zoomGesturesEnabled = false)
-                    ) { Marker(state = MarkerState(position = markerPosition), title = incident.category) }
+            if (incident.photos.size > 1) {
+                DetailSection(Icons.Filled.Photo, "Fotos") {
+                    Text("${incident.photos.size} fotos adjuntas", style = MaterialTheme.typography.bodyMedium)
                 }
             }
 
-            Divider()
+            HorizontalDivider()
 
             // ========================================
             // VALIDACIÓN COMUNITARIA
             // ========================================
-            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Filled.HowToVote, null, tint = MaterialTheme.colorScheme.primary)
@@ -243,15 +263,22 @@ private fun IncidentDetailContent(
                             Text("${incident.votedTrueCount}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
                             Text("Confirman", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             val scoreColor = when {
                                 incident.validationScore >= 3 -> Color(0xFF4CAF50)
                                 incident.validationScore <= -3 -> MaterialTheme.colorScheme.error
                                 else -> MaterialTheme.colorScheme.onSurface
                             }
-                            Text("${if (incident.validationScore > 0) "+" else ""}${incident.validationScore}", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = scoreColor)
+                            Text(
+                                "${if (incident.validationScore > 0) "+" else ""}${incident.validationScore}",
+                                style = MaterialTheme.typography.displaySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = scoreColor
+                            )
                             Text("Score", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Filled.ThumbDown, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(28.dp))
                             Text("${incident.votedFalseCount}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
@@ -269,7 +296,7 @@ private fun IncidentDetailContent(
                         )
                     }
 
-                    Divider()
+                    HorizontalDivider()
 
                     if (isOwner) {
                         Text("No puedes votar en tu propio reporte", Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
@@ -290,7 +317,7 @@ private fun IncidentDetailContent(
                                     Row(Modifier.fillMaxWidth().padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Filled.Check, null, Modifier.size(18.dp), tint = Color(0xFF4CAF50))
                                         Text("Confirmaste este reporte", style = MaterialTheme.typography.bodySmall, color = Color(0xFF388E3C), modifier = Modifier.weight(1f))
-                                        TextButton(onClick = onRemoveVote) { Text("Quitar", style = MaterialTheme.typography.labelSmall) }
+                                        TextButton(onClick = onRemoveVote) { Text("Quitar voto", style = MaterialTheme.typography.labelSmall) }
                                     }
                                 }
                             }
@@ -299,7 +326,7 @@ private fun IncidentDetailContent(
                                     Row(Modifier.fillMaxWidth().padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Filled.Close, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
                                         Text("Reportaste como falso", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
-                                        TextButton(onClick = onRemoveVote) { Text("Quitar", style = MaterialTheme.typography.labelSmall) }
+                                        TextButton(onClick = onRemoveVote) { Text("Quitar voto", style = MaterialTheme.typography.labelSmall) }
                                     }
                                 }
                             }
@@ -307,39 +334,72 @@ private fun IncidentDetailContent(
                     }
                 }
             }
-        }
-    }
 
-    // ========================================
-    // DIÁLOGO FOTO PANTALLA COMPLETA
-    // ========================================
-    if (showFullScreenPhoto && !incident.imageUrl.isNullOrBlank()) {
-        Dialog(
-            onDismissRequest = { showFullScreenPhoto = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable { showFullScreenPhoto = false },
-                contentAlignment = Alignment.Center
-            ) {
-                AsyncImage(
-                    model = incident.imageUrl,
-                    contentDescription = "Foto del incidente",
-                    modifier = Modifier.fillMaxWidth(),
-                    contentScale = ContentScale.Fit
-                )
+            HorizontalDivider()
 
-                IconButton(
-                    onClick = { showFullScreenPhoto = false },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+            // ========================================
+            // COMENTARIOS
+            // ========================================
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.Forum, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                Text("Comentarios (${comments.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+
+            if (commentsLoading) {
+                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                }
+            } else if (comments.isEmpty()) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = MaterialTheme.shapes.small
                 ) {
-                    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)) {
-                        Icon(Icons.Filled.Close, "Cerrar", Modifier.padding(8.dp))
+                    Text(
+                        "No hay comentarios aún. ¡Sé el primero!",
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    comments.forEach { comment ->
+                        CommentItemDetail(comment = comment)
                     }
                 }
             }
+
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun CommentItemDetail(comment: Comment) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Surface(
+            modifier = Modifier.size(36.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Person, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(comment.displayName, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Text(comment.timeAgo(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(comment.text, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
