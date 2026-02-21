@@ -11,8 +11,40 @@ import com.example.safecity.MainActivity
 import com.example.safecity.R
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import com.example.safecity.network.TokenStore
+import android.provider.Settings
+import com.example.safecity.network.DeviceRegistrationRequest
+import com.example.safecity.network.ApiClient
+import android.util.Log
+
 
 class FCMService : FirebaseMessagingService() {
+
+
+    override fun onNewToken(token: String) {
+        super.onNewToken(token)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val authToken = TokenStore.get() ?: TokenStore.refresh() ?: return@launch
+
+                val deviceId = Settings.Secure.getString(
+                    applicationContext.contentResolver,
+                    Settings.Secure.ANDROID_ID
+                )
+
+                ApiClient.api.registerDevice(
+                    "Bearer $authToken",
+                    DeviceRegistrationRequest(deviceId = deviceId, fcmToken = token)
+                )
+            } catch (e: Exception) {
+                Log.w("FCMService", "No se pudo actualizar token: ${e.message}")
+            }
+        }
+    }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
@@ -28,11 +60,7 @@ class FCMService : FirebaseMessagingService() {
         }
     }
 
-    override fun onNewToken(token: String) {
-        super.onNewToken(token)
-        // ✅ Aquí puedes guardar el token en Firestore si quieres notificaciones dirigidas
-        // Ejemplo: guardar en /users/{userId}/fcmToken
-    }
+
 
     private fun showNotification(title: String, message: String) {
         val channelId = "safecity_incidents"
