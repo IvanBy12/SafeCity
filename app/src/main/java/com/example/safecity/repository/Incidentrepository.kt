@@ -10,10 +10,13 @@ import com.example.safecity.network.IncidentResp
 import com.example.safecity.network.TokenStore
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.GeoPoint
+import com.google.gson.JsonElement
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 class IncidentRepository(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
 ) {
@@ -25,7 +28,7 @@ class IncidentRepository(
     // ==========================================
 
     fun getIncidentsFlow(): Flow<List<Incident>> = flow {
-        while (true) {
+        while (currentCoroutineContext().isActive) {
             try {
                 Log.d(TAG, "Actualizando incidentes...")
 
@@ -49,8 +52,13 @@ class IncidentRepository(
 
                 val incidents = response.map { it.toIncident() }
                 emit(incidents)
+
                 delay(10000)
 
+            } catch (e: CancellationException) {
+                // ✅ Esto NO es error: es cancelación normal (salir de pantalla, etc.)
+                Log.d(TAG, "Polling de incidentes cancelado")
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Error cargando incidentes: ${e.message}", e)
                 emit(emptyList())
