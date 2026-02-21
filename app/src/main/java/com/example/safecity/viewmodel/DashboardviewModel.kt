@@ -4,6 +4,7 @@ import android.location.Location
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.safecity.models.Comment
 import com.example.safecity.models.Incident
 import com.example.safecity.models.IncidentType
 import com.example.safecity.repository.IncidentRepository
@@ -22,7 +23,13 @@ data class DashboardUiState(
     val showVerifiedOnly: Boolean = false,
     val loading: Boolean = false,
     val error: String? = null,
-    val currentUserId: String? = null
+    val currentUserId: String? = null,
+    // ========================================
+    // COMENTARIOS
+    // ========================================
+    val comments: List<Comment> = emptyList(),
+    val commentsLoading: Boolean = false,
+    val commentSending: Boolean = false
 )
 
 class DashboardViewModel(
@@ -110,7 +117,11 @@ class DashboardViewModel(
     }
 
     fun selectIncident(incident: Incident?) {
-        _uiState.update { it.copy(selectedIncident = incident) }
+        _uiState.update { it.copy(selectedIncident = incident, comments = emptyList()) }
+        // Auto-cargar comentarios al seleccionar
+        if (incident != null) {
+            loadComments(incident.id)
+        }
     }
 
     fun updateUserLocation(location: Location) {
@@ -126,6 +137,43 @@ class DashboardViewModel(
         return when {
             meters < 1000 -> "${meters.toInt()} m"
             else -> String.format("%.1f km", meters / 1000)
+        }
+    }
+
+    // ========================================
+    // COMENTARIOS
+    // ========================================
+
+    fun loadComments(incidentId: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(commentsLoading = true) }
+            repository.getIncidentComments(incidentId)
+                .onSuccess { comments ->
+                    Log.d(TAG, "Comentarios cargados: ${comments.size}")
+                    _uiState.update { it.copy(comments = comments, commentsLoading = false) }
+                }
+                .onFailure { e ->
+                    Log.e(TAG, "Error cargando comentarios: ${e.message}", e)
+                    _uiState.update { it.copy(commentsLoading = false) }
+                }
+        }
+    }
+
+    fun sendComment(incidentId: String, text: String) {
+        if (text.isBlank()) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(commentSending = true) }
+            repository.addComment(incidentId, text)
+                .onSuccess {
+                    Log.d(TAG, "Comentario enviado, recargando...")
+                    _uiState.update { it.copy(commentSending = false) }
+                    // Recargar comentarios después de enviar
+                    loadComments(incidentId)
+                }
+                .onFailure { e ->
+                    Log.e(TAG, "Error enviando comentario: ${e.message}", e)
+                    _uiState.update { it.copy(commentSending = false, error = e.message) }
+                }
         }
     }
 
@@ -212,12 +260,7 @@ class DashboardViewModel(
     }
 
     fun addComment(incidentId: String, text: String) {
-        viewModelScope.launch {
-            repository.addComment(incidentId, text)
-                .onFailure { e ->
-                    _uiState.update { it.copy(error = e.message) }
-                }
-        }
+        sendComment(incidentId, text)
     }
 
     fun deleteIncident(incidentId: String) {
