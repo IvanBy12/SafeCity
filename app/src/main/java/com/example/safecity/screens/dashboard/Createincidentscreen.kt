@@ -2,10 +2,8 @@ package com.example.safecity.screens.dashboard
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.Context
 import android.location.Geocoder
 import android.net.Uri
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -67,43 +65,25 @@ fun CreateIncidentScreen(
     var uploadingPhoto by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
-    // ========================================
-    // FOTO: Estado
-    // ========================================
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
     var showPhotoOptions by remember { mutableStateOf(false) }
 
     val storageRepository = remember { StorageRepository() }
-
-    // Permiso de cámara
     val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA)
 
-    // Launcher para tomar foto con cámara
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success) {
-            photoUri = tempCameraUri
-        }
-    }
+    ) { success -> if (success) photoUri = tempCameraUri }
 
-    // Launcher para elegir de galería
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let { photoUri = it }
-    }
+    ) { uri: Uri? -> uri?.let { photoUri = it } }
 
-    // Función para crear URI temporal para la cámara
     fun createTempImageUri(): Uri {
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val imageFile = File(context.cacheDir, "JPEG_${timeStamp}.jpg")
-        return FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.provider",
-            imageFile
-        )
+        return FileProvider.getUriForFile(context, "${context.packageName}.provider", imageFile)
     }
 
     fun launchCamera() {
@@ -121,16 +101,13 @@ fun CreateIncidentScreen(
         IncidentType.INFRAESTRUCTURA -> IncidentCategories.INFRAESTRUCTURA
     }
 
-    // Obtener ubicación al abrir
     LaunchedEffect(Unit) {
         try {
             val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
             @SuppressLint("MissingPermission")
-            val location = fusedLocationClient.getCurrentLocation(
-                Priority.PRIORITY_HIGH_ACCURACY,
-                null
-            ).await()
-
+            val location = fusedLocationClient
+                .getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                .await()
             location?.let {
                 currentLocation = GeoPoint(it.latitude, it.longitude)
                 try {
@@ -151,9 +128,7 @@ fun CreateIncidentScreen(
             TopAppBar(
                 title = { Text("Nuevo Reporte") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, "Volver")
-                    }
+                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, "Volver") }
                 }
             )
         }
@@ -166,32 +141,22 @@ fun CreateIncidentScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ========================================
-            // TIPO DE INCIDENTE
-            // ========================================
+            // TIPO
             Text("Tipo de incidente", style = MaterialTheme.typography.titleMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
                     selected = selectedType == IncidentType.SEGURIDAD,
-                    onClick = {
-                        selectedType = IncidentType.SEGURIDAD
-                        selectedCategory = ""
-                    },
+                    onClick = { selectedType = IncidentType.SEGURIDAD; selectedCategory = "" },
                     label = { Text("🚨 Seguridad") }
                 )
                 FilterChip(
                     selected = selectedType == IncidentType.INFRAESTRUCTURA,
-                    onClick = {
-                        selectedType = IncidentType.INFRAESTRUCTURA
-                        selectedCategory = ""
-                    },
+                    onClick = { selectedType = IncidentType.INFRAESTRUCTURA; selectedCategory = "" },
                     label = { Text("🏗️ Infraestructura") }
                 )
             }
 
-            // ========================================
             // CATEGORÍA
-            // ========================================
             Text("Categoría", style = MaterialTheme.typography.titleMedium)
             categories.chunked(3).forEach { rowCategories ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -203,15 +168,11 @@ fun CreateIncidentScreen(
                             modifier = Modifier.weight(1f)
                         )
                     }
-                    repeat(3 - rowCategories.size) {
-                        Spacer(Modifier.weight(1f))
-                    }
+                    repeat(3 - rowCategories.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
 
-            // ========================================
             // DESCRIPCIÓN
-            // ========================================
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
@@ -222,13 +183,9 @@ fun CreateIncidentScreen(
                 maxLines = 5
             )
 
-            // ========================================
-            // FOTO (OPCIONAL)
-            // ========================================
+            // FOTO
             Text("Foto (opcional)", style = MaterialTheme.typography.titleMedium)
-
             if (photoUri != null) {
-                // Preview de la foto seleccionada
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -241,161 +198,84 @@ fun CreateIncidentScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
-
-                    // Botón para quitar la foto
                     IconButton(
                         onClick = { photoUri = null },
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp)
+                        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
                     ) {
                         Surface(
                             shape = RoundedCornerShape(50),
                             color = MaterialTheme.colorScheme.errorContainer
                         ) {
                             Icon(
-                                Icons.Filled.Close,
-                                contentDescription = "Quitar foto",
+                                Icons.Filled.Close, "Quitar foto",
                                 modifier = Modifier.padding(6.dp),
                                 tint = MaterialTheme.colorScheme.onErrorContainer
                             )
                         }
                     }
-
-                    // Botón para cambiar la foto
                     TextButton(
                         onClick = { showPhotoOptions = true },
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(8.dp)
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(8.dp)
                     ) {
                         Surface(
                             shape = RoundedCornerShape(50),
                             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
                         ) {
-                            Text(
-                                "Cambiar foto",
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                                style = MaterialTheme.typography.labelMedium
-                            )
+                            Text("Cambiar foto", modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
                         }
                     }
                 }
             } else {
-                // Botones para agregar foto
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Tomar foto
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedCard(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(100.dp)
-                            .clickable { launchCamera() }
+                        modifier = Modifier.weight(1f).height(100.dp).clickable { launchCamera() }
                     ) {
                         Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(12.dp),
+                            modifier = Modifier.fillMaxSize().padding(12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Icon(
-                                Icons.Filled.CameraAlt,
-                                contentDescription = null,
-                                modifier = Modifier.size(32.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                            Icon(Icons.Filled.CameraAlt, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.height(4.dp))
-                            Text(
-                                "Tomar foto",
-                                style = MaterialTheme.typography.labelMedium
-                            )
+                            Text("Tomar foto", style = MaterialTheme.typography.labelMedium)
                         }
                     }
-
-                    // Elegir de galería
                     OutlinedCard(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(100.dp)
-                            .clickable { galleryLauncher.launch("image/*") }
+                        modifier = Modifier.weight(1f).height(100.dp).clickable { galleryLauncher.launch("image/*") }
                     ) {
                         Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(12.dp),
+                            modifier = Modifier.fillMaxSize().padding(12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Icon(
-                                Icons.Filled.PhotoLibrary,
-                                contentDescription = null,
-                                modifier = Modifier.size(32.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                            Icon(Icons.Filled.PhotoLibrary, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.height(4.dp))
-                            Text(
-                                "Galería",
-                                style = MaterialTheme.typography.labelMedium
-                            )
+                            Text("Galería", style = MaterialTheme.typography.labelMedium)
                         }
                     }
                 }
             }
 
-            // ========================================
             // UBICACIÓN
-            // ========================================
             Card {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            Icons.Filled.LocationOn,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Filled.LocationOn, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                         Text("Ubicación", style = MaterialTheme.typography.titleMedium)
                     }
-                    Text(
-                        address,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text(address, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
-            // ========================================
-            // ERROR
-            // ========================================
             errorMsg?.let { msg ->
-                Text(
-                    msg,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Text(msg, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
             }
 
-            // ========================================
-            // BOTÓN CREAR
-            // ========================================
             Button(
                 onClick = {
                     errorMsg = null
-
-                    if (selectedCategory.isBlank()) {
-                        errorMsg = "Selecciona una categoría"
-                        return@Button
-                    }
-                    if (currentLocation == null) {
-                        errorMsg = "Esperando ubicación..."
-                        return@Button
-                    }
+                    if (selectedCategory.isBlank()) { errorMsg = "Selecciona una categoría"; return@Button }
+                    if (currentLocation == null) { errorMsg = "Esperando ubicación..."; return@Button }
 
                     val incident = Incident(
                         type = selectedType,
@@ -404,23 +284,15 @@ fun CreateIncidentScreen(
                         location = currentLocation!!,
                         address = address
                     )
-
                     loading = true
 
-                    // Si hay foto, subirla primero a Firebase Storage
                     if (photoUri != null) {
                         uploadingPhoto = true
                         scope.launch {
-                            val uploadResult = storageRepository.uploadIncidentPhoto(context, photoUri!!)
-
-                            uploadResult
+                            storageRepository.uploadIncidentPhoto(context, photoUri!!)
                                 .onSuccess { downloadUrl ->
                                     uploadingPhoto = false
-                                    // Crear incidente con la URL de la foto
-                                    viewModel.createIncident(
-                                        incident = incident,
-                                        photoUrls = listOf(downloadUrl)
-                                    ) {
+                                    viewModel.createIncident(incident, listOf(downloadUrl)) {
                                         loading = false
                                         onBack()
                                     }
@@ -432,8 +304,7 @@ fun CreateIncidentScreen(
                                 }
                         }
                     } else {
-                        // Sin foto, crear directamente
-                        viewModel.createIncident(incident = incident, photoUrls = emptyList()) {
+                        viewModel.createIncident(incident, emptyList()) {
                             loading = false
                             onBack()
                         }
@@ -442,22 +313,18 @@ fun CreateIncidentScreen(
                 enabled = !loading && !uploadingPhoto && selectedCategory.isNotBlank() && currentLocation != null,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                if (uploadingPhoto) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text("Subiendo foto...")
-                } else if (loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text("Creando reporte...")
-                } else {
-                    Text("Crear Reporte")
+                when {
+                    uploadingPhoto -> {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Subiendo foto...")
+                    }
+                    loading -> {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Creando reporte...")
+                    }
+                    else -> Text("Crear Reporte")
                 }
             }
 
@@ -465,31 +332,22 @@ fun CreateIncidentScreen(
         }
     }
 
-    // ========================================
-    // DIÁLOGO PARA CAMBIAR FOTO
-    // ========================================
     if (showPhotoOptions) {
         AlertDialog(
             onDismissRequest = { showPhotoOptions = false },
-            icon = { Icon(Icons.Filled.Photo, contentDescription = null) },
+            icon = { Icon(Icons.Filled.Photo, null) },
             title = { Text("Cambiar foto") },
             text = { Text("¿Cómo quieres agregar la foto?") },
             confirmButton = {
-                TextButton(onClick = {
-                    showPhotoOptions = false
-                    launchCamera()
-                }) {
-                    Icon(Icons.Filled.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                TextButton(onClick = { showPhotoOptions = false; launchCamera() }) {
+                    Icon(Icons.Filled.CameraAlt, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Cámara")
                 }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    showPhotoOptions = false
-                    galleryLauncher.launch("image/*")
-                }) {
-                    Icon(Icons.Filled.PhotoLibrary, contentDescription = null, modifier = Modifier.size(18.dp))
+                TextButton(onClick = { showPhotoOptions = false; galleryLauncher.launch("image/*") }) {
+                    Icon(Icons.Filled.PhotoLibrary, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Galería")
                 }

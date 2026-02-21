@@ -104,12 +104,10 @@ class DashboardViewModel(
                     _uiState.update { it.copy(error = e.message, loading = false) }
                 }
                 .collect { incidents ->
-                    Log.d(TAG, "Flow emitio: ${incidents.size} incidentes")
                     _uiState.update { state ->
-                        val filtered = applyFilters(incidents, state)
                         state.copy(
                             incidents = incidents,
-                            filteredIncidents = filtered,
+                            filteredIncidents = applyFilters(incidents, state),
                             loading = false
                         )
                     }
@@ -206,32 +204,43 @@ class DashboardViewModel(
 
     fun selectIncident(incident: Incident?) {
         _uiState.update { it.copy(selectedIncident = incident, comments = emptyList()) }
-        // Auto-cargar comentarios al seleccionar
         if (incident != null) {
             loadComments(incident.id)
         }
     }
 
-    fun updateUserLocation(location: Location) {
-        _uiState.update {
-            it.copy(userLocation = LatLng(location.latitude, location.longitude))
+    fun loadNearbyIncidents(lat: Double, lng: Double, radiusKm: Int = 5) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(loading = true) }
+            repository.getNearbyIncidents(lat, lng, radiusKm)
+                .onSuccess { incidents ->
+                    _uiState.update { state ->
+                        state.copy(
+                            incidents = incidents,
+                            filteredIncidents = applyFilters(incidents, state),
+                            loading = false
+                        )
+                    }
+                }
+                .onFailure { e -> _uiState.update { it.copy(error = e.message, loading = false) } }
         }
     }
 
     fun calculateDistance(from: LatLng, to: GeoPoint): String {
         val results = FloatArray(1)
-        Location.distanceBetween(from.latitude, from.longitude, to.latitude, to.longitude, results)
+        Location.distanceBetween(
+            from.latitude, from.longitude,
+            to.latitude, to.longitude,
+            results
+        )
         val meters = results[0]
-        return when {
-            meters < 1000 -> "${meters.toInt()} m"
-            else -> String.format("%.1f km", meters / 1000)
-        }
+        return if (meters < 1000) "${meters.toInt()} m"
+        else String.format("%.1f km", meters / 1000)
     }
 
-    // ========================================
+    // ==========================================
     // COMENTARIOS
-    // ========================================
-
+    // ==========================================
     fun loadComments(incidentId: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(commentsLoading = true) }
@@ -253,9 +262,7 @@ class DashboardViewModel(
             _uiState.update { it.copy(commentSending = true) }
             repository.addComment(incidentId, text)
                 .onSuccess {
-                    Log.d(TAG, "Comentario enviado, recargando...")
                     _uiState.update { it.copy(commentSending = false) }
-                    // Recargar comentarios después de enviar
                     loadComments(incidentId)
                 }
                 .onFailure { e ->
@@ -265,75 +272,49 @@ class DashboardViewModel(
         }
     }
 
-    // ========================================
-    // VOTAR VERDADERO
-    // ========================================
-
+    // ==========================================
+    // VOTACIÓN
+    // ==========================================
     fun voteTrue(incidentId: String) {
-        Log.d(TAG, "Votando verdadero: $incidentId")
         viewModelScope.launch {
             repository.voteTrue(incidentId)
-                .onSuccess { Log.d(TAG, "Voto verdadero exitoso") }
-                .onFailure { e ->
-                    Log.e(TAG, "Error votando verdadero: ${e.message}", e)
-                    _uiState.update { it.copy(error = e.message) }
-                }
+                .onFailure { e -> _uiState.update { it.copy(error = e.message) } }
         }
     }
-
-    // ========================================
-    // VOTAR FALSO
-    // ========================================
 
     fun voteFalse(incidentId: String) {
-        Log.d(TAG, "Votando falso: $incidentId")
         viewModelScope.launch {
             repository.voteFalse(incidentId)
-                .onSuccess { Log.d(TAG, "Voto falso exitoso") }
-                .onFailure { e ->
-                    Log.e(TAG, "Error votando falso: ${e.message}", e)
-                    _uiState.update { it.copy(error = e.message) }
-                }
+                .onFailure { e -> _uiState.update { it.copy(error = e.message) } }
         }
     }
-
-    // ========================================
-    // QUITAR VOTO
-    // ========================================
 
     fun removeVote(incidentId: String) {
-        Log.d(TAG, "Removiendo voto: $incidentId")
         viewModelScope.launch {
             repository.removeVote(incidentId)
-                .onSuccess { Log.d(TAG, "Voto removido exitosamente") }
-                .onFailure { e ->
-                    Log.e(TAG, "Error removiendo voto: ${e.message}", e)
-                    _uiState.update { it.copy(error = e.message) }
-                }
+                .onFailure { e -> _uiState.update { it.copy(error = e.message) } }
         }
     }
-
-    // ========================================
-    // COMPATIBILIDAD
-    // ========================================
 
     fun confirmIncident(incidentId: String) = voteTrue(incidentId)
     fun unconfirmIncident(incidentId: String) = removeVote(incidentId)
 
-    // ========================================
+    // ==========================================
     // HELPERS DE ESTADO DEL VOTO
-    // ========================================
-
+    // ==========================================
     fun getUserVoteStatus(incident: Incident): String = incident.userVoteStatus
     fun hasUserConfirmed(incident: Incident): Boolean = incident.userVoteStatus == "true"
     fun hasUserFlagged(incident: Incident): Boolean = incident.userVoteStatus == "false"
     fun isOwner(incident: Incident): Boolean = incident.userId == _uiState.value.currentUserId
 
-    // ========================================
-    // CREAR INCIDENTE (con fotos opcionales)
-    // ========================================
-
-    fun createIncident(incident: Incident, photoUrls: List<String> = emptyList(), onSuccess: () -> Unit) {
+    // ==========================================
+    // CREAR INCIDENTE
+    // ==========================================
+    fun createIncident(
+        incident: Incident,
+        photoUrls: List<String> = emptyList(),
+        onSuccess: () -> Unit
+    ) {
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true) }
             repository.createIncident(incident, photoUrls)
@@ -347,16 +328,12 @@ class DashboardViewModel(
         }
     }
 
-    fun addComment(incidentId: String, text: String) {
-        sendComment(incidentId, text)
-    }
+    fun addComment(incidentId: String, text: String) = sendComment(incidentId, text)
 
     fun deleteIncident(incidentId: String) {
         viewModelScope.launch {
             repository.deleteIncident(incidentId)
-                .onFailure { e ->
-                    _uiState.update { it.copy(error = e.message) }
-                }
+                .onFailure { e -> _uiState.update { it.copy(error = e.message) } }
         }
     }
 

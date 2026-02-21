@@ -16,6 +16,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.safecity.models.IncidentType
 import com.example.safecity.viewmodel.DashboardViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -25,7 +26,6 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import kotlinx.coroutines.tasks.await
-import com.google.accompanist.permissions.MultiplePermissionsState
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -62,10 +62,14 @@ fun DashboardScreen(
             try {
                 val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
                 @SuppressLint("MissingPermission")
-                val location = fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null).await()
+                val location = fusedLocationClient
+                    .getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                    .await()
                 location?.let {
                     viewModel.updateUserLocation(it)
-                    cameraPositionState.move(CameraUpdateFactory.newLatLngZoom(LatLng(it.latitude, it.longitude), 15f))
+                    cameraPositionState.move(
+                        CameraUpdateFactory.newLatLngZoom(LatLng(it.latitude, it.longitude), 15f)
+                    )
                 }
             } catch (_: Exception) { }
         }
@@ -98,23 +102,36 @@ fun DashboardScreen(
             TopAppBar(
                 title = { Text("SafeCity Dashboard") },
                 actions = {
-                    IconButton(onClick = onNavigateToProfile) { Icon(Icons.Filled.Person, "Perfil") }
-                    IconButton(onClick = onLogout) { Icon(Icons.Filled.Logout, "Cerrar sesión") }
+                    IconButton(onClick = onNavigateToProfile) {
+                        Icon(Icons.Filled.Person, "Perfil")
+                    }
+                    IconButton(onClick = onLogout) {
+                        Icon(Icons.Filled.Logout, "Cerrar sesión")
+                    }
                 }
             )
         },
         floatingActionButton = {
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 if (uiState.userLocation != null) {
                     SmallFloatingActionButton(
                         onClick = {
-                            uiState.userLocation?.let { cameraPositionState.move(CameraUpdateFactory.newLatLngZoom(it, 15f)) }
+                            uiState.userLocation?.let {
+                                cameraPositionState.move(CameraUpdateFactory.newLatLngZoom(it, 15f))
+                            }
                         },
                         containerColor = MaterialTheme.colorScheme.surface,
                         shape = CircleShape
-                    ) { Icon(Icons.Filled.MyLocation, "Mi ubicación") }
+                    ) {
+                        Icon(Icons.Filled.MyLocation, "Mi ubicación")
+                    }
                 }
-                FloatingActionButton(onClick = onNavigateToCreateIncident) { Icon(Icons.Filled.Add, "Nuevo reporte") }
+                FloatingActionButton(onClick = onNavigateToCreateIncident) {
+                    Icon(Icons.Filled.Add, "Nuevo reporte")
+                }
             }
         }
     ) { padding ->
@@ -125,59 +142,117 @@ fun DashboardScreen(
                         modifier = Modifier.fillMaxSize(),
                         cameraPositionState = cameraPositionState,
                         properties = MapProperties(isMyLocationEnabled = true),
-                        uiSettings = MapUiSettings(zoomControlsEnabled = false, myLocationButtonEnabled = false)
+                        uiSettings = MapUiSettings(
+                            zoomControlsEnabled = false,
+                            myLocationButtonEnabled = false
+                        )
                     ) {
                         uiState.filteredIncidents.forEach { incident ->
                             Marker(
-                                state = MarkerState(position = LatLng(incident.location.latitude, incident.location.longitude)),
+                                state = MarkerState(
+                                    position = LatLng(
+                                        incident.location.latitude,
+                                        incident.location.longitude
+                                    )
+                                ),
                                 title = incident.category,
                                 snippet = incident.description,
                                 icon = BitmapDescriptorFactory.defaultMarker(
-                                    if (incident.type == IncidentType.SEGURIDAD) BitmapDescriptorFactory.HUE_RED
-                                    else BitmapDescriptorFactory.HUE_BLUE
+                                    if (incident.type == IncidentType.SEGURIDAD)
+                                        BitmapDescriptorFactory.HUE_RED
+                                    else
+                                        BitmapDescriptorFactory.HUE_BLUE
                                 ),
                                 onClick = { viewModel.selectIncident(incident); true }
                             )
                         }
                     }
 
-                    // Filtros dropdown
+                    // Filtros
                     Box(modifier = Modifier.align(Alignment.TopStart).padding(12.dp)) {
                         ElevatedFilterChip(
                             selected = hasActiveFilters,
                             onClick = { filtersExpanded = !filtersExpanded },
                             label = { Text(activeFilterLabel) },
-                            leadingIcon = { Icon(if (hasActiveFilters) Icons.Filled.FilterAlt else Icons.Filled.FilterList, null, Modifier.size(18.dp)) },
-                            trailingIcon = { Icon(if (filtersExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, null, Modifier.size(18.dp)) }
+                            leadingIcon = {
+                                Icon(
+                                    if (hasActiveFilters) Icons.Filled.FilterAlt else Icons.Filled.FilterList,
+                                    null, Modifier.size(18.dp)
+                                )
+                            },
+                            trailingIcon = {
+                                Icon(
+                                    if (filtersExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                    null, Modifier.size(18.dp)
+                                )
+                            }
                         )
 
-                        DropdownMenu(expanded = filtersExpanded, onDismissRequest = { filtersExpanded = false }) {
+                        DropdownMenu(
+                            expanded = filtersExpanded,
+                            onDismissRequest = { filtersExpanded = false }
+                        ) {
                             DropdownMenuItem(
                                 text = { Text("Seguridad") },
-                                onClick = { viewModel.filterByType(if (uiState.filterType == IncidentType.SEGURIDAD) null else IncidentType.SEGURIDAD) },
-                                leadingIcon = { Checkbox(checked = uiState.filterType == IncidentType.SEGURIDAD, onCheckedChange = null) }
+                                onClick = {
+                                    viewModel.filterByType(
+                                        if (uiState.filterType == IncidentType.SEGURIDAD) null
+                                        else IncidentType.SEGURIDAD
+                                    )
+                                },
+                                leadingIcon = {
+                                    Checkbox(
+                                        checked = uiState.filterType == IncidentType.SEGURIDAD,
+                                        onCheckedChange = null
+                                    )
+                                }
                             )
                             DropdownMenuItem(
                                 text = { Text("Infraestructura") },
-                                onClick = { viewModel.filterByType(if (uiState.filterType == IncidentType.INFRAESTRUCTURA) null else IncidentType.INFRAESTRUCTURA) },
-                                leadingIcon = { Checkbox(checked = uiState.filterType == IncidentType.INFRAESTRUCTURA, onCheckedChange = null) }
+                                onClick = {
+                                    viewModel.filterByType(
+                                        if (uiState.filterType == IncidentType.INFRAESTRUCTURA) null
+                                        else IncidentType.INFRAESTRUCTURA
+                                    )
+                                },
+                                leadingIcon = {
+                                    Checkbox(
+                                        checked = uiState.filterType == IncidentType.INFRAESTRUCTURA,
+                                        onCheckedChange = null
+                                    )
+                                }
                             )
                             Divider(Modifier.padding(vertical = 4.dp))
                             DropdownMenuItem(
                                 text = { Text("Solo verificados") },
                                 onClick = { viewModel.toggleVerifiedFilter() },
-                                leadingIcon = { Checkbox(checked = uiState.showVerifiedOnly, onCheckedChange = null) }
+                                leadingIcon = {
+                                    Checkbox(
+                                        checked = uiState.showVerifiedOnly,
+                                        onCheckedChange = null
+                                    )
+                                }
                             )
                             if (hasActiveFilters) {
                                 Divider(Modifier.padding(vertical = 4.dp))
                                 DropdownMenuItem(
-                                    text = { Text("Limpiar filtros", color = MaterialTheme.colorScheme.error) },
+                                    text = {
+                                        Text(
+                                            "Limpiar filtros",
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    },
                                     onClick = {
                                         viewModel.filterByType(null)
                                         if (uiState.showVerifiedOnly) viewModel.toggleVerifiedFilter()
                                         filtersExpanded = false
                                     },
-                                    leadingIcon = { Icon(Icons.Filled.Clear, null, tint = MaterialTheme.colorScheme.error) }
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Filled.Clear, null,
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
                                 )
                             }
                         }
@@ -191,7 +266,9 @@ fun DashboardScreen(
                 }
             }
 
-            if (uiState.loading) { CircularProgressIndicator(Modifier.align(Alignment.Center)) }
+            if (uiState.loading) {
+                CircularProgressIndicator(Modifier.align(Alignment.Center))
+            }
 
             uiState.error?.let { error ->
                 Snackbar(
@@ -201,12 +278,15 @@ fun DashboardScreen(
             }
         }
 
-        // ========================================
-        // BOTTOM SHEET CON VOTOS + COMENTARIOS
-        // ========================================
+        // ==========================================
+        // BOTTOM SHEET
+        // ==========================================
         if (showBottomSheet && uiState.selectedIncident != null) {
             ModalBottomSheet(
-                onDismissRequest = { showBottomSheet = false; viewModel.selectIncident(null) },
+                onDismissRequest = {
+                    showBottomSheet = false
+                    viewModel.selectIncident(null)
+                },
                 sheetState = sheetState
             ) {
                 uiState.selectedIncident?.let { selectedIncident ->
@@ -219,7 +299,6 @@ fun DashboardScreen(
                         isOwner = viewModel.isOwner(selectedIncident),
                         userVoteStatus = viewModel.getUserVoteStatus(selectedIncident),
                         calculateDistance = viewModel::calculateDistance,
-                        // ✅ COMENTARIOS CONECTADOS
                         comments = uiState.comments,
                         commentsLoading = uiState.commentsLoading,
                         commentSending = uiState.commentSending,
@@ -245,14 +324,23 @@ fun PermissionRequestScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Icon(Icons.Filled.LocationOn, null, Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
+                Icon(
+                    Icons.Filled.LocationOn, null,
+                    Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
                 Text("Permisos de ubicación necesarios", style = MaterialTheme.typography.titleLarge)
-                Text("SafeCity necesita acceso a tu ubicación para mostrarte incidentes cercanos.", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "SafeCity necesita acceso a tu ubicación para mostrarte incidentes cercanos.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
                 if (permissionsState.shouldShowRationale) {
                     Text("Parece que rechazaste los permisos antes.", style = MaterialTheme.typography.bodySmall)
                 }
                 Button(onClick = onRequestPermission, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Filled.LocationOn, null); Spacer(Modifier.width(8.dp)); Text("Conceder permisos")
+                    Icon(Icons.Filled.LocationOn, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Conceder permisos")
                 }
             }
         }
