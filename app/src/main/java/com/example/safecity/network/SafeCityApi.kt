@@ -1,5 +1,6 @@
 package com.example.safecity.network
 
+import com.google.gson.JsonElement
 import retrofit2.http.*
 
 // ==========================================
@@ -13,7 +14,8 @@ data class CreateIncidentReq(
     val description: String,
     val latitude: Double,
     val longitude: Double,
-    val address: String? = null
+    val address: String? = null,
+    val photos: List<String> = emptyList()
 )
 
 data class VoteRequest(
@@ -47,6 +49,8 @@ data class IncidentResp(
     val address: String?,
     val reporterUid: String,
     val status: String,
+    // ✅ JsonElement para manejar tanto strings como objetos en photos
+    val photos: JsonElement?,
     // Nuevo sistema de validación
     val validationScore: Int?,
     val votedTrue: List<String>?,

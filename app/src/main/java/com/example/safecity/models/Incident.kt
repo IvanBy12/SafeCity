@@ -10,6 +10,7 @@ data class Incident(
     val location: GeoPoint = GeoPoint(0.0, 0.0),
     val address: String = "",
     val imageUrl: String? = null,
+    val photos: List<String> = emptyList(),
     val userId: String = "",
     val userName: String = "",
     val timestamp: Long = System.currentTimeMillis(),
@@ -29,7 +30,11 @@ data class Incident(
     val confirmedBy: List<String> = emptyList(),
     val votedTrue: List<String> = emptyList(),
     val votedFalse: List<String> = emptyList()
-)
+) {
+    /** Retorna la primera foto disponible o null */
+    val firstPhoto: String?
+        get() = photos.firstOrNull() ?: imageUrl
+}
 
 enum class IncidentType {
     SEGURIDAD,

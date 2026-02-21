@@ -84,12 +84,14 @@ class IncidentRepository(
     }
 
     // ==========================================
-    // CREAR INCIDENTE
+    // CREAR INCIDENTE (ahora recibe photoUrls)
     // ==========================================
 
-    suspend fun createIncident(incident: Incident): Result<String> {
+    suspend fun createIncident(incident: Incident, photoUrls: List<String> = emptyList()): Result<String> {
         return try {
             val token = getToken() ?: return Result.failure(Exception("No se pudo obtener token"))
+
+            val allPhotos = photoUrls.ifEmpty { incident.photos }
 
             val request = CreateIncidentReq(
                 categoryGroup = incident.type.name,
@@ -98,8 +100,11 @@ class IncidentRepository(
                 description = incident.description,
                 latitude = incident.location.latitude,
                 longitude = incident.location.longitude,
-                address = incident.address
+                address = incident.address,
+                photos = allPhotos
             )
+
+            Log.d(TAG, "Creando incidente con ${allPhotos.size} fotos")
 
             val response = api.createIncident("Bearer $token", request)
             Result.success(response._id)
@@ -220,6 +225,46 @@ class IncidentRepository(
         }
     }
 
+    /**
+     * Extrae URLs de fotos desde un JsonElement que puede ser:
+     * - null
+     * - JsonArray de strings: ["https://..."]
+     * - JsonArray de objetos: [{"url": "https://..."}, ...]
+     * - JsonArray mixto: ["https://...", {"url": "https://..."}]
+     */
+    private fun parsePhotos(photosElement: JsonElement?): List<String> {
+        if (photosElement == null || photosElement.isJsonNull) return emptyList()
+
+        if (!photosElement.isJsonArray) return emptyList()
+
+        val result = mutableListOf<String>()
+        for (element in photosElement.asJsonArray) {
+            try {
+                when {
+                    // Caso 1: Es un string directo → "https://firebasestorage..."
+                    element.isJsonPrimitive && element.asJsonPrimitive.isString -> {
+                        val url = element.asString
+                        if (url.isNotBlank()) result.add(url)
+                    }
+                    // Caso 2: Es un objeto → {"url": "https://...", ...}
+                    element.isJsonObject -> {
+                        val obj = element.asJsonObject
+                        // Intentar extraer URL de varias claves comunes
+                        val url = obj.get("url")?.asString
+                            ?: obj.get("imageUrl")?.asString
+                            ?: obj.get("downloadUrl")?.asString
+                            ?: obj.get("uri")?.asString
+                            ?: obj.get("src")?.asString
+                        if (!url.isNullOrBlank()) result.add(url)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error parseando elemento de photos: ${e.message}")
+            }
+        }
+        return result
+    }
+
     // ==========================================
     // MAPPER: Backend Response → App Model
     // ==========================================
@@ -232,6 +277,9 @@ class IncidentRepository(
         val votedTrueList = votedTrue ?: emptyList()
         val votedFalseList = votedFalse ?: emptyList()
         val score = validationScore ?: (votedTrueList.size - votedFalseList.size)
+
+        // ✅ Parseo seguro de fotos (maneja strings, objetos, y mixtos)
+        val photosList = parsePhotos(photos)
 
         // Determinar el voto del usuario actual
         val userVote = when {
@@ -251,7 +299,8 @@ class IncidentRepository(
             description = description,
             location = GeoPoint(lat, lng),
             address = address ?: "",
-            imageUrl = null,
+            imageUrl = photosList.firstOrNull(),
+            photos = photosList,
             userId = reporterUid,
             userName = "Usuario",
             timestamp = parseTimestamp(createdAt),
