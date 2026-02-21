@@ -259,7 +259,6 @@ private fun IncidentDetailContent(
                         }
                     }
 
-                    // Barra de progreso
                     val totalVotes = incident.votedTrueCount + incident.votedFalseCount
                     if (totalVotes > 0) {
                         LinearProgressIndicator(
@@ -272,24 +271,18 @@ private fun IncidentDetailContent(
 
                     Divider()
 
-                    // Botones de votación
                     if (isOwner) {
                         Text("No puedes votar en tu propio reporte", Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
                     } else {
                         when (userVoteStatus) {
                             "none" -> {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    FilledTonalButton(
-                                        onClick = onVoteTrue,
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.15f))
-                                    ) { Icon(Icons.Filled.ThumbUp, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Confirmar") }
-
-                                    FilledTonalButton(
-                                        onClick = onVoteFalse,
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.12f))
-                                    ) { Icon(Icons.Filled.ThumbDown, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Es falso") }
+                                    FilledTonalButton(onClick = onVoteTrue, modifier = Modifier.weight(1f), colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.15f))) {
+                                        Icon(Icons.Filled.ThumbUp, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Confirmar")
+                                    }
+                                    FilledTonalButton(onClick = onVoteFalse, modifier = Modifier.weight(1f), colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.12f))) {
+                                        Icon(Icons.Filled.ThumbDown, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Es falso")
+                                    }
                                 }
                             }
                             "true" -> {
@@ -297,7 +290,7 @@ private fun IncidentDetailContent(
                                     Row(Modifier.fillMaxWidth().padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Filled.Check, null, Modifier.size(18.dp), tint = Color(0xFF4CAF50))
                                         Text("Confirmaste este reporte", style = MaterialTheme.typography.bodySmall, color = Color(0xFF388E3C), modifier = Modifier.weight(1f))
-                                        TextButton(onClick = onRemoveVote) { Text("Quitar voto", style = MaterialTheme.typography.labelSmall) }
+                                        TextButton(onClick = onRemoveVote) { Text("Quitar", style = MaterialTheme.typography.labelSmall) }
                                     }
                                 }
                             }
@@ -306,7 +299,7 @@ private fun IncidentDetailContent(
                                     Row(Modifier.fillMaxWidth().padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Filled.Close, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
                                         Text("Reportaste como falso", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
-                                        TextButton(onClick = onRemoveVote) { Text("Quitar voto", style = MaterialTheme.typography.labelSmall) }
+                                        TextButton(onClick = onRemoveVote) { Text("Quitar", style = MaterialTheme.typography.labelSmall) }
                                     }
                                 }
                             }

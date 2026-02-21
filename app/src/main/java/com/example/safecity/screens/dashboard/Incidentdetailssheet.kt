@@ -203,19 +203,12 @@ private fun ValidationScoreSection(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Votos verdaderos
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Filled.ThumbUp, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(24.dp))
-                    Text(
-                        "${incident.votedTrueCount}",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF4CAF50)
-                    )
+                    Text("${incident.votedTrueCount}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
                     Text("Confirman", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
-                // Score neto
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     val scoreColor = when {
                         incident.validationScore >= 3 -> Color(0xFF4CAF50)
@@ -231,15 +224,9 @@ private fun ValidationScoreSection(
                     Text("Score", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
-                // Votos falsos
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Filled.ThumbDown, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(24.dp))
-                    Text(
-                        "${incident.votedFalseCount}",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.error
-                    )
+                    Text("${incident.votedFalseCount}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
                     Text("Niegan", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -294,11 +281,7 @@ private fun ValidationScoreSection(
             // BOTONES DE VOTACIÓN
             // ========================================
             if (isOwner) {
-                // El creador no puede votar
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = MaterialTheme.shapes.small
-                ) {
+                Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small) {
                     Text(
                         "No puedes votar en tu propio reporte",
                         modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -310,31 +293,21 @@ private fun ValidationScoreSection(
             } else {
                 when (userVoteStatus) {
                     "none" -> {
-                        // No ha votado → mostrar ambos botones
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Confirmar (verdadero)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilledTonalButton(
                                 onClick = { onVoteTrue(incident.id) },
                                 modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = Color(0xFF4CAF50).copy(alpha = 0.15f)
-                                )
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF4CAF50).copy(alpha = 0.15f))
                             ) {
                                 Icon(Icons.Filled.ThumbUp, null, Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
                                 Text("Confirmar")
                             }
 
-                            // Reportar como falso
                             FilledTonalButton(
                                 onClick = { onVoteFalse(incident.id) },
                                 modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
-                                )
+                                colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.12f))
                             ) {
                                 Icon(Icons.Filled.ThumbDown, null, Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
@@ -344,11 +317,7 @@ private fun ValidationScoreSection(
                     }
 
                     "true" -> {
-                        // Ya votó verdadero
-                        Surface(
-                            color = Color(0xFF4CAF50).copy(alpha = 0.08f),
-                            shape = MaterialTheme.shapes.small
-                        ) {
+                        Surface(color = Color(0xFF4CAF50).copy(alpha = 0.08f), shape = MaterialTheme.shapes.small) {
                             Row(
                                 Modifier.fillMaxWidth().padding(10.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -364,11 +333,7 @@ private fun ValidationScoreSection(
                     }
 
                     "false" -> {
-                        // Ya votó falso
-                        Surface(
-                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.08f),
-                            shape = MaterialTheme.shapes.small
-                        ) {
+                        Surface(color = MaterialTheme.colorScheme.error.copy(alpha = 0.08f), shape = MaterialTheme.shapes.small) {
                             Row(
                                 Modifier.fillMaxWidth().padding(10.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),

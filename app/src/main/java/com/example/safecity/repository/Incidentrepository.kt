@@ -66,7 +66,6 @@ class IncidentRepository(
             }
         }
     }
-
     // ==========================================
     // BUSCAR CERCANOS
     // ==========================================
@@ -115,7 +114,7 @@ class IncidentRepository(
     }
 
     // ========================================
-    // NUEVO: VOTAR COMO VERDADERO
+    // VOTAR COMO VERDADERO
     // ========================================
 
     suspend fun voteTrue(incidentId: String): Result<Unit> {
@@ -136,7 +135,7 @@ class IncidentRepository(
     }
 
     // ========================================
-    // NUEVO: VOTAR COMO FALSO
+    // VOTAR COMO FALSO
     // ========================================
 
     suspend fun voteFalse(incidentId: String): Result<Unit> {
@@ -157,7 +156,7 @@ class IncidentRepository(
     }
 
     // ========================================
-    // NUEVO: QUITAR VOTO
+    // QUITAR VOTO
     // ========================================
 
     suspend fun removeVote(incidentId: String): Result<Unit> {

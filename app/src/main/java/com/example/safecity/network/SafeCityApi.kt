@@ -76,7 +76,6 @@ data class StatsResponse(
     val byType: Map<String, Int>
 )
 
-// Respuesta genérica de votación
 data class VoteResponse(
     val success: Boolean,
     val message: String?,
@@ -129,10 +128,6 @@ interface SafeCityApi {
         @Body request: CreateIncidentReq
     ): IncidentResp
 
-    // ========================================
-    // NUEVO SISTEMA DE VALIDACIÓN
-    // ========================================
-
     @PUT("incidents/{id}/vote/true")
     suspend fun voteTrue(
         @Header("Authorization") auth: String,
@@ -150,10 +145,6 @@ interface SafeCityApi {
         @Header("Authorization") auth: String,
         @Path("id") id: String
     ): VoteResponse
-
-    // ========================================
-    // COMPATIBILIDAD (mantener por ahora)
-    // ========================================
 
     @PUT("incidents/{id}/confirm")
     suspend fun confirmIncident(

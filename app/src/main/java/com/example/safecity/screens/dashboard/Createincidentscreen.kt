@@ -112,14 +112,6 @@ fun CreateIncidentScreen(
         }
     }
 
-    // Si se concede el permiso de cámara después de pedirlo, lanzar cámara
-    LaunchedEffect(cameraPermission.status.isGranted) {
-        // Solo lanzar si el usuario acaba de conceder el permiso y quería tomar foto
-        if (cameraPermission.status.isGranted && tempCameraUri == null && showPhotoOptions) {
-            // El usuario acaba de conceder → no hacer nada, que presione de nuevo
-        }
-    }
-
     val categories = when (selectedType) {
         IncidentType.SEGURIDAD -> IncidentCategories.SEGURIDAD
         IncidentType.INFRAESTRUCTURA -> IncidentCategories.INFRAESTRUCTURA

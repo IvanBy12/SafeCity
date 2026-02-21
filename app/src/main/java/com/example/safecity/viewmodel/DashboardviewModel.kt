@@ -85,7 +85,6 @@ class DashboardViewModel(
         return incidents.filter { incident ->
             val matchesType = state.filterType == null || incident.type == state.filterType
             val matchesVerified = !state.showVerifiedOnly || incident.verified
-            // No mostrar reportes marcados como falsos
             val notFlagged = !incident.flaggedFalse
             matchesType && matchesVerified && notFlagged
         }
@@ -131,7 +130,7 @@ class DashboardViewModel(
     }
 
     // ========================================
-    // NUEVO: VOTAR VERDADERO
+    // VOTAR VERDADERO
     // ========================================
 
     fun voteTrue(incidentId: String) {
@@ -147,7 +146,7 @@ class DashboardViewModel(
     }
 
     // ========================================
-    // NUEVO: VOTAR FALSO
+    // VOTAR FALSO
     // ========================================
 
     fun voteFalse(incidentId: String) {
@@ -163,7 +162,7 @@ class DashboardViewModel(
     }
 
     // ========================================
-    // NUEVO: QUITAR VOTO
+    // QUITAR VOTO
     // ========================================
 
     fun removeVote(incidentId: String) {
