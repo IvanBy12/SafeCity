@@ -18,7 +18,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.isActive
-import com.example.safecity.network.IncidentDetailResponse
 
 class IncidentRepository(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
@@ -29,42 +28,34 @@ class IncidentRepository(
     // ==========================================
     // LISTAR INCIDENTES CON POLLING
     // ==========================================
-
     fun getIncidentsFlow(): Flow<List<Incident>> = flow {
         while (currentCoroutineContext().isActive) {
             try {
-                Log.d(TAG, "Actualizando incidentes...")
-
-                val token = TokenStore.get() ?: run {
-                    Log.d(TAG, "No hay token en cache, refrescando...")
-                    TokenStore.refresh()
-                    TokenStore.get()
-                }
+                // getOrRefresh() retorna el token cacheado si es válido,
+                // o hace un refresh forzado si está expirado o es null.
+                val token = TokenStore.getOrRefresh()
 
                 if (token.isNullOrBlank()) {
-                    Log.e(TAG, "Token vacio despues de refresh")
+                    Log.e(TAG, "Sin token disponible, reintentando en 10s")
                     emit(emptyList())
-                    delay(30000)
+                    delay(10_000)
                     continue
                 }
 
-                val paginatedResponse = api.listIncidents("Bearer $token")
-                val response = paginatedResponse.data
-
-                Log.d(TAG, "Response recibida: ${response.size} incidentes")
-
-                val incidents = response.map { it.toIncident() }
+                val response = api.listIncidents("Bearer $token")
+                val incidents = response.data.map { it.toIncident() }
+                Log.d(TAG, "Incidentes recibidos: ${incidents.size}")
                 emit(incidents)
 
-                delay(10000)
+                delay(10_000)
 
             } catch (e: CancellationException) {
-                Log.d(TAG, "Polling de incidentes cancelado")
+                Log.d(TAG, "Polling cancelado")
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Error cargando incidentes: ${e.message}", e)
+                Log.e(TAG, "Error cargando incidentes: ${e.message}")
                 emit(emptyList())
-                delay(30000)
+                delay(30_000)
             }
         }
     }
@@ -72,35 +63,30 @@ class IncidentRepository(
     // ==========================================
     // BUSCAR CERCANOS
     // ==========================================
-
     suspend fun getNearbyIncidents(lat: Double, lng: Double, radiusKm: Int = 5): Result<List<Incident>> {
         return try {
-            val token = getToken() ?: return Result.failure(Exception("No autenticado"))
-            val paginatedResponse = api.listNearby("Bearer $token", lat, lng, radiusKm)
-            val incidents = paginatedResponse.data.map { it.toIncident() }
-            Result.success(incidents)
+            val token = TokenStore.getOrRefresh()
+                ?: return Result.failure(Exception("No autenticado"))
+            val response = api.listNearby("Bearer $token", lat, lng, radiusKm)
+            Result.success(response.data.map { it.toIncident() })
         } catch (e: Exception) {
-            Log.e(TAG, "Error buscando cercanos: ${e.message}", e)
+            Log.e(TAG, "Error buscando cercanos: ${e.message}")
             Result.failure(e)
         }
     }
 
     // ==========================================
-    // OBTENER COMENTARIOS DE UN INCIDENTE
+    // COMENTARIOS
     // ==========================================
-
-    suspend fun getIncidentComments(incidentId: String): Result<List<com.example.safecity.models.Comment>> {
+    suspend fun getIncidentComments(incidentId: String): Result<List<Comment>> {
         return try {
-            val token = getToken() ?: return Result.failure(Exception("No autenticado"))
-
+            val token = TokenStore.getOrRefresh()
+                ?: return Result.failure(Exception("No autenticado"))
             val resp = api.getIncidentDetail("Bearer $token", incidentId)
-            if (!resp.success) return Result.failure(Exception("No se pudo cargar el detalle del incidente"))
+            if (!resp.success) return Result.failure(Exception("No se pudo cargar el incidente"))
 
-            val commentsResp = resp.data.comments ?: emptyList()
-
-            val comments = commentsResp.map { c ->
-                // ⚠️ Ajusta los nombres si tu data class Comment tiene otros campos.
-                com.example.safecity.models.Comment(
+            val comments = (resp.data.comments ?: emptyList()).map { c ->
+                Comment(
                     id = c._id,
                     text = c.text,
                     authorUid = c.authorUid,
@@ -108,24 +94,22 @@ class IncidentRepository(
                     createdAt = parseTimestamp(c.createdAt)
                 )
             }
-
             Result.success(comments)
         } catch (e: Exception) {
-            Log.e(TAG, "Error cargando comentarios: ${e.message}", e)
+            Log.e(TAG, "Error cargando comentarios: ${e.message}")
             Result.failure(e)
         }
     }
 
     // ==========================================
-    // CREAR INCIDENTE (ahora recibe photoUrls)
+    // CREAR INCIDENTE
     // ==========================================
-
     suspend fun createIncident(incident: Incident, photoUrls: List<String> = emptyList()): Result<String> {
         return try {
-            val token = getToken() ?: return Result.failure(Exception("No se pudo obtener token"))
+            val token = TokenStore.getOrRefresh()
+                ?: return Result.failure(Exception("No se pudo obtener token"))
 
             val allPhotos = photoUrls.ifEmpty { incident.photos }
-
             val request = CreateIncidentReq(
                 categoryGroup = incident.type.name,
                 type = incident.category,
@@ -136,114 +120,81 @@ class IncidentRepository(
                 address = incident.address,
                 photos = allPhotos
             )
-
-            Log.d(TAG, "Creando incidente con ${allPhotos.size} fotos")
-
             val response = api.createIncident("Bearer $token", request)
             Result.success(response._id)
         } catch (e: Exception) {
-            Log.e(TAG, "Error creando incidente: ${e.message}", e)
+            Log.e(TAG, "Error creando incidente: ${e.message}")
             Result.failure(e)
         }
     }
 
-    // ========================================
-    // VOTAR COMO VERDADERO
-    // ========================================
-
+    // ==========================================
+    // VOTACIÓN
+    // ==========================================
     suspend fun voteTrue(incidentId: String): Result<Unit> {
         return try {
-            val token = getToken() ?: return Result.failure(Exception("No autenticado"))
+            val token = TokenStore.getOrRefresh() ?: return Result.failure(Exception("No autenticado"))
             val response = api.voteTrue("Bearer $token", incidentId)
-            if (response.success) {
-                Log.d(TAG, "Voto verdadero registrado. Score: ${response.data?.validationScore}")
-                Result.success(Unit)
-            } else {
-                Result.failure(Exception(response.error ?: "Error votando"))
-            }
+            if (response.success) Result.success(Unit)
+            else Result.failure(Exception(response.error ?: "Error votando"))
         } catch (e: Exception) {
-            Log.e(TAG, "Error votando verdadero: ${e.message}", e)
+            Log.e(TAG, "Error votando verdadero: ${e.message}")
             Result.failure(e)
         }
     }
-
-    // ========================================
-    // VOTAR COMO FALSO
-    // ========================================
 
     suspend fun voteFalse(incidentId: String): Result<Unit> {
         return try {
-            val token = getToken() ?: return Result.failure(Exception("No autenticado"))
+            val token = TokenStore.getOrRefresh() ?: return Result.failure(Exception("No autenticado"))
             val response = api.voteFalse("Bearer $token", incidentId)
-            if (response.success) {
-                Log.d(TAG, "Voto falso registrado. Score: ${response.data?.validationScore}")
-                Result.success(Unit)
-            } else {
-                Result.failure(Exception(response.error ?: "Error votando"))
-            }
+            if (response.success) Result.success(Unit)
+            else Result.failure(Exception(response.error ?: "Error votando"))
         } catch (e: Exception) {
-            Log.e(TAG, "Error votando falso: ${e.message}", e)
+            Log.e(TAG, "Error votando falso: ${e.message}")
             Result.failure(e)
         }
     }
-
-    // ========================================
-    // QUITAR VOTO
-    // ========================================
 
     suspend fun removeVote(incidentId: String): Result<Unit> {
         return try {
-            val token = getToken() ?: return Result.failure(Exception("No autenticado"))
+            val token = TokenStore.getOrRefresh() ?: return Result.failure(Exception("No autenticado"))
             val response = api.removeVote("Bearer $token", incidentId)
-            if (response.success) {
-                Log.d(TAG, "Voto removido. Score: ${response.data?.validationScore}")
-                Result.success(Unit)
-            } else {
-                Result.failure(Exception(response.error ?: "Error removiendo voto"))
-            }
+            if (response.success) Result.success(Unit)
+            else Result.failure(Exception(response.error ?: "Error removiendo voto"))
         } catch (e: Exception) {
-            Log.e(TAG, "Error removiendo voto: ${e.message}", e)
+            Log.e(TAG, "Error removiendo voto: ${e.message}")
             Result.failure(e)
         }
     }
-
-    // ========================================
-    // COMPATIBILIDAD
-    // ========================================
 
     suspend fun confirmIncident(incidentId: String): Result<Unit> = voteTrue(incidentId)
     suspend fun unconfirmIncident(incidentId: String): Result<Unit> = removeVote(incidentId)
 
     // ==========================================
-    // AGREGAR COMENTARIO
+    // COMENTARIO
     // ==========================================
-
     suspend fun addComment(incidentId: String, text: String): Result<Unit> {
         return try {
-            val token = getToken() ?: return Result.failure(Exception("No autenticado"))
-
+            val token = TokenStore.getOrRefresh() ?: return Result.failure(Exception("No autenticado"))
             val resp = api.addComment("Bearer $token", incidentId, CommentRequest(text))
-            if (!resp.success) return Result.failure(Exception(resp.error ?: "No se pudo enviar el comentario"))
-
+            if (!resp.success) return Result.failure(Exception(resp.error ?: "Error enviando comentario"))
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Error agregando comentario: ${e.message}", e)
+            Log.e(TAG, "Error comentando: ${e.message}")
             Result.failure(e)
         }
     }
 
-
     // ==========================================
-    // ELIMINAR INCIDENTE
+    // ELIMINAR
     // ==========================================
-
     suspend fun deleteIncident(incidentId: String): Result<Unit> {
         return try {
-            val token = getToken() ?: return Result.failure(Exception("No autenticado"))
+            val token = TokenStore.getOrRefresh() ?: return Result.failure(Exception("No autenticado"))
             api.deleteIncident("Bearer $token", incidentId)
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Error eliminando: ${e.message}", e)
+            Log.e(TAG, "Error eliminando: ${e.message}")
             Result.failure(e)
         }
     }
@@ -251,18 +202,9 @@ class IncidentRepository(
     // ==========================================
     // HELPERS
     // ==========================================
-
-    private suspend fun getToken(): String? {
-        return TokenStore.get() ?: run {
-            TokenStore.refresh()
-            TokenStore.get()
-        }
-    }
-
     private fun parsePhotos(photosElement: JsonElement?): List<String> {
         if (photosElement == null || photosElement.isJsonNull) return emptyList()
         if (!photosElement.isJsonArray) return emptyList()
-
         val result = mutableListOf<String>()
         for (element in photosElement.asJsonArray) {
             try {
@@ -282,15 +224,11 @@ class IncidentRepository(
                     }
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Error parseando elemento de photos: ${e.message}")
+                Log.w(TAG, "Error parseando photo: ${e.message}")
             }
         }
         return result
     }
-
-    // ==========================================
-    // MAPPER: Backend Response → App Model
-    // ==========================================
 
     private fun IncidentResp.toIncident(): Incident {
         val lng = location.coordinates.getOrNull(0) ?: 0.0
@@ -311,7 +249,6 @@ class IncidentRepository(
         return Incident(
             id = _id,
             type = when (categoryGroup.uppercase()) {
-                "SEGURIDAD" -> IncidentType.SEGURIDAD
                 "INFRAESTRUCTURA" -> IncidentType.INFRAESTRUCTURA
                 else -> IncidentType.SEGURIDAD
             },
