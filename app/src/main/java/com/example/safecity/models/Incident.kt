@@ -25,6 +25,11 @@ data class Incident(
     val flaggedFalse: Boolean = false,
     val userVoteStatus: String = "none",  // "none" | "true" | "false"
 
+    // ========================================
+    // COMENTARIOS
+    // ========================================
+    val commentsCount: Int = 0,
+
     // Compatibilidad
     val confirmations: Int = 0,
     val confirmedBy: List<String> = emptyList(),
