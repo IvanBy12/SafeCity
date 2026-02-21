@@ -11,12 +11,14 @@ class AuthRepository(
 
     suspend fun login(email: String, password: String) {
         auth.signInWithEmailAndPassword(email.trim(), password).await()
-        TokenStore.refresh(forceRefresh = true)   // 🔥 clave
+        // forceRefresh = true para garantizar que el nuevo token
+        // se cachee con su tiempo de expiración correcto
+        TokenStore.refresh(forceRefresh = true)
     }
 
     suspend fun register(email: String, password: String) {
         auth.createUserWithEmailAndPassword(email.trim(), password).await()
-        TokenStore.refresh(forceRefresh = true)   // 🔥 clave
+        TokenStore.refresh(forceRefresh = true)
     }
 
     fun logout() {
