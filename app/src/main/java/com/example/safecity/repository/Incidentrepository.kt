@@ -1,6 +1,7 @@
 package com.example.safecity.repository
 
 import android.util.Log
+import com.example.safecity.models.Comment
 import com.example.safecity.models.Incident
 import com.example.safecity.models.IncidentType
 import com.example.safecity.network.ApiClient
@@ -11,12 +12,14 @@ import com.example.safecity.network.TokenStore
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.GeoPoint
 import com.google.gson.JsonElement
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
+import com.example.safecity.network.IncidentDetailResponse
+
 class IncidentRepository(
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
 ) {
@@ -56,7 +59,6 @@ class IncidentRepository(
                 delay(10000)
 
             } catch (e: CancellationException) {
-                // ✅ Esto NO es error: es cancelación normal (salir de pantalla, etc.)
                 Log.d(TAG, "Polling de incidentes cancelado")
                 throw e
             } catch (e: Exception) {
@@ -66,6 +68,7 @@ class IncidentRepository(
             }
         }
     }
+
     // ==========================================
     // BUSCAR CERCANOS
     // ==========================================
@@ -78,6 +81,37 @@ class IncidentRepository(
             Result.success(incidents)
         } catch (e: Exception) {
             Log.e(TAG, "Error buscando cercanos: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    // ==========================================
+    // OBTENER COMENTARIOS DE UN INCIDENTE
+    // ==========================================
+
+    suspend fun getIncidentComments(incidentId: String): Result<List<com.example.safecity.models.Comment>> {
+        return try {
+            val token = getToken() ?: return Result.failure(Exception("No autenticado"))
+
+            val resp = api.getIncidentDetail("Bearer $token", incidentId)
+            if (!resp.success) return Result.failure(Exception("No se pudo cargar el detalle del incidente"))
+
+            val commentsResp = resp.data.comments ?: emptyList()
+
+            val comments = commentsResp.map { c ->
+                // ⚠️ Ajusta los nombres si tu data class Comment tiene otros campos.
+                com.example.safecity.models.Comment(
+                    id = c._id,
+                    text = c.text,
+                    authorUid = c.authorUid,
+                    isAnonymous = c.isAnonymous ?: false,
+                    createdAt = parseTimestamp(c.createdAt)
+                )
+            }
+
+            Result.success(comments)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error cargando comentarios: ${e.message}", e)
             Result.failure(e)
         }
     }
@@ -121,7 +155,6 @@ class IncidentRepository(
         return try {
             val token = getToken() ?: return Result.failure(Exception("No autenticado"))
             val response = api.voteTrue("Bearer $token", incidentId)
-
             if (response.success) {
                 Log.d(TAG, "Voto verdadero registrado. Score: ${response.data?.validationScore}")
                 Result.success(Unit)
@@ -142,7 +175,6 @@ class IncidentRepository(
         return try {
             val token = getToken() ?: return Result.failure(Exception("No autenticado"))
             val response = api.voteFalse("Bearer $token", incidentId)
-
             if (response.success) {
                 Log.d(TAG, "Voto falso registrado. Score: ${response.data?.validationScore}")
                 Result.success(Unit)
@@ -163,7 +195,6 @@ class IncidentRepository(
         return try {
             val token = getToken() ?: return Result.failure(Exception("No autenticado"))
             val response = api.removeVote("Bearer $token", incidentId)
-
             if (response.success) {
                 Log.d(TAG, "Voto removido. Score: ${response.data?.validationScore}")
                 Result.success(Unit)
@@ -177,7 +208,7 @@ class IncidentRepository(
     }
 
     // ========================================
-    // COMPATIBILIDAD: confirm/unconfirm
+    // COMPATIBILIDAD
     // ========================================
 
     suspend fun confirmIncident(incidentId: String): Result<Unit> = voteTrue(incidentId)
@@ -190,13 +221,17 @@ class IncidentRepository(
     suspend fun addComment(incidentId: String, text: String): Result<Unit> {
         return try {
             val token = getToken() ?: return Result.failure(Exception("No autenticado"))
-            api.addComment("Bearer $token", incidentId, CommentRequest(text))
+
+            val resp = api.addComment("Bearer $token", incidentId, CommentRequest(text))
+            if (!resp.success) return Result.failure(Exception(resp.error ?: "No se pudo enviar el comentario"))
+
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Error agregando comentario: ${e.message}", e)
             Result.failure(e)
         }
     }
+
 
     // ==========================================
     // ELIMINAR INCIDENTE
@@ -224,31 +259,20 @@ class IncidentRepository(
         }
     }
 
-    /**
-     * Extrae URLs de fotos desde un JsonElement que puede ser:
-     * - null
-     * - JsonArray de strings: ["https://..."]
-     * - JsonArray de objetos: [{"url": "https://..."}, ...]
-     * - JsonArray mixto: ["https://...", {"url": "https://..."}]
-     */
     private fun parsePhotos(photosElement: JsonElement?): List<String> {
         if (photosElement == null || photosElement.isJsonNull) return emptyList()
-
         if (!photosElement.isJsonArray) return emptyList()
 
         val result = mutableListOf<String>()
         for (element in photosElement.asJsonArray) {
             try {
                 when {
-                    // Caso 1: Es un string directo → "https://firebasestorage..."
                     element.isJsonPrimitive && element.asJsonPrimitive.isString -> {
                         val url = element.asString
                         if (url.isNotBlank()) result.add(url)
                     }
-                    // Caso 2: Es un objeto → {"url": "https://...", ...}
                     element.isJsonObject -> {
                         val obj = element.asJsonObject
-                        // Intentar extraer URL de varias claves comunes
                         val url = obj.get("url")?.asString
                             ?: obj.get("imageUrl")?.asString
                             ?: obj.get("downloadUrl")?.asString
@@ -276,11 +300,8 @@ class IncidentRepository(
         val votedTrueList = votedTrue ?: emptyList()
         val votedFalseList = votedFalse ?: emptyList()
         val score = validationScore ?: (votedTrueList.size - votedFalseList.size)
-
-        // ✅ Parseo seguro de fotos (maneja strings, objetos, y mixtos)
         val photosList = parsePhotos(photos)
 
-        // Determinar el voto del usuario actual
         val userVote = when {
             votedTrueList.contains(currentUserId) -> "true"
             votedFalseList.contains(currentUserId) -> "false"
@@ -303,14 +324,13 @@ class IncidentRepository(
             userId = reporterUid,
             userName = "Usuario",
             timestamp = parseTimestamp(createdAt),
-            // Nuevo sistema
             validationScore = score,
             votedTrueCount = votedTrueList.size,
             votedFalseCount = votedFalseList.size,
             verified = verified ?: (score >= 3),
             flaggedFalse = flaggedFalse ?: (score <= -5),
             userVoteStatus = userVote,
-            // Compatibilidad
+            commentsCount = commentsCount ?: 0,
             confirmations = confirmationsCount,
             confirmedBy = confirmedBy ?: emptyList(),
             votedTrue = votedTrueList,
