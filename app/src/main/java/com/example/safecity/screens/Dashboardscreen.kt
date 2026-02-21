@@ -66,7 +66,7 @@ fun DashboardScreen(
         }
     }
 
-    val sheetState = rememberModalBottomSheetState()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showBottomSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.selectedIncident) {
@@ -197,7 +197,7 @@ fun DashboardScreen(
         }
 
         // ========================================
-        // BOTTOM SHEET CON NUEVO SISTEMA DE VOTOS
+        // BOTTOM SHEET CON VOTOS + COMENTARIOS
         // ========================================
         if (showBottomSheet && uiState.selectedIncident != null) {
             ModalBottomSheet(
@@ -213,7 +213,13 @@ fun DashboardScreen(
                         onRemoveVote = { viewModel.removeVote(it) },
                         isOwner = viewModel.isOwner(selectedIncident),
                         userVoteStatus = viewModel.getUserVoteStatus(selectedIncident),
-                        calculateDistance = viewModel::calculateDistance
+                        calculateDistance = viewModel::calculateDistance,
+                        // ✅ COMENTARIOS CONECTADOS
+                        comments = uiState.comments,
+                        commentsLoading = uiState.commentsLoading,
+                        commentSending = uiState.commentSending,
+                        onSendComment = { text -> viewModel.sendComment(selectedIncident.id, text) },
+                        onLoadComments = { viewModel.loadComments(selectedIncident.id) }
                     )
                 }
             }
