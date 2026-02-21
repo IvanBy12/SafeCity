@@ -27,6 +27,28 @@ data class CommentRequest(
     val isAnonymous: Boolean = false
 )
 
+/**
+ * Registra o actualiza el dispositivo en el backend.
+ * Llamar tras login y cuando el FCM token se renueve.
+ */
+data class DeviceRegistrationRequest(
+    val deviceId: String,
+    val platform: String = "android",
+    val fcmToken: String,
+    val latitude: Double? = null,
+    val longitude: Double? = null
+)
+
+/**
+ * Actualiza solo la ubicación del dispositivo.
+ * Llamar periódicamente cuando la ubicación cambia.
+ */
+data class LocationUpdateRequest(
+    val deviceId: String,
+    val latitude: Double,
+    val longitude: Double
+)
+
 // ==========================================
 // RESPONSE MODELS
 // ==========================================
@@ -63,8 +85,6 @@ data class IncidentResp(
     val updatedAt: String
 )
 
-
-/** Respuesta del endpoint GET /incidents/:id con comments */
 data class IncidentDetailResponse(
     val success: Boolean,
     val data: IncidentDetailData
@@ -95,7 +115,6 @@ data class IncidentDetailData(
     val votes: JsonElement? = null
 )
 
-
 data class CommentResp(
     val _id: String,
     val incidentId: String? = null,
@@ -109,6 +128,11 @@ data class SimpleResponse(
     val success: Boolean,
     val message: String? = null,
     val error: String? = null
+)
+
+data class OkResponse(
+    val ok: Boolean,
+    val message: String? = null
 )
 
 data class LocationResponse(
@@ -162,12 +186,12 @@ interface SafeCityApi {
         @Header("Authorization") auth: String
     ): StatsResponse
 
-    /** Detalle de incidente CON comentarios */
     @GET("incidents/{id}")
     suspend fun getIncidentDetail(
         @Header("Authorization") auth: String,
         @Path("id") id: String
     ): IncidentDetailResponse
+
     @POST("incidents")
     suspend fun createIncident(
         @Header("Authorization") auth: String,
@@ -204,8 +228,6 @@ interface SafeCityApi {
         @Path("id") id: String
     ): VoteResponse
 
-    /** Agregar comentario */
-
     @POST("incidents/{id}/comments")
     suspend fun addComment(
         @Header("Authorization") auth: String,
@@ -218,4 +240,28 @@ interface SafeCityApi {
         @Header("Authorization") auth: String,
         @Path("id") id: String
     ): Map<String, Any>
+
+    // ==========================================
+    // DISPOSITIVO Y UBICACIÓN (para FCM de proximidad)
+    // ==========================================
+
+    /**
+     * Registra o actualiza el dispositivo con su FCM token.
+     * Llamar después del login y cuando el token FCM se renueve.
+     */
+    @PUT("me/device")
+    suspend fun registerDevice(
+        @Header("Authorization") auth: String,
+        @Body request: DeviceRegistrationRequest
+    ): OkResponse
+
+    /**
+     * Actualiza solo la ubicación del dispositivo.
+     * Llamar cuando la ubicación cambie significativamente.
+     */
+    @PUT("me/location")
+    suspend fun updateLocation(
+        @Header("Authorization") auth: String,
+        @Body request: LocationUpdateRequest
+    ): OkResponse
 }
