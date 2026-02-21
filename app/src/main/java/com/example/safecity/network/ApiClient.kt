@@ -8,14 +8,14 @@ import java.util.concurrent.TimeUnit
 
 object ApiClient {
 
-    // ✅ LOGGING INTERCEPTOR - Ver todas las peticiones HTTP
     private val logging = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
     }
 
     private val okHttp = OkHttpClient.Builder()
-        .addInterceptor(logging)              // ✅ Primero logging
-        .addInterceptor(AuthInterceptor())    // ✅ Luego auth
+        .addInterceptor(logging)           // 1. log
+        .addInterceptor(AuthInterceptor()) // 2. agrega Bearer desde cache
+        .authenticator(TokenAuthenticator()) // 3. reintenta si llega 401
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
