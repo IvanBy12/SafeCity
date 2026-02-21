@@ -31,6 +31,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.safecity.models.Incident
 import com.example.safecity.models.IncidentCategories
 import com.example.safecity.models.IncidentType
+import com.example.safecity.repository.StorageRepository
 import com.example.safecity.viewmodel.DashboardViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -59,6 +60,7 @@ fun CreateIncidentScreen(
     var currentLocation by remember { mutableStateOf<GeoPoint?>(null) }
     var address by remember { mutableStateOf("Obteniendo ubicación...") }
     var loading by remember { mutableStateOf(false) }
+    var uploadingPhoto by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
     // ========================================
@@ -67,6 +69,8 @@ fun CreateIncidentScreen(
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
     var showPhotoOptions by remember { mutableStateOf(false) }
+
+    val storageRepository = remember { StorageRepository() }
 
     // Permiso de cámara
     val cameraPermission = rememberPermissionState(Manifest.permission.CAMERA)
@@ -406,23 +410,59 @@ fun CreateIncidentScreen(
                     )
 
                     loading = true
-                    // TODO: Si photoUri != null, subir a Firebase Storage antes de crear
-                    viewModel.createIncident(incident) {
-                        loading = false
-                        onBack()
+
+                    // Si hay foto, subirla primero a Firebase Storage
+                    if (photoUri != null) {
+                        uploadingPhoto = true
+                        scope.launch {
+                            val uploadResult = storageRepository.uploadIncidentPhoto(context, photoUri!!)
+
+                            uploadResult
+                                .onSuccess { downloadUrl ->
+                                    uploadingPhoto = false
+                                    // Crear incidente con la URL de la foto
+                                    viewModel.createIncident(
+                                        incident = incident,
+                                        photoUrls = listOf(downloadUrl)
+                                    ) {
+                                        loading = false
+                                        onBack()
+                                    }
+                                }
+                                .onFailure { e ->
+                                    uploadingPhoto = false
+                                    loading = false
+                                    errorMsg = "Error subiendo foto: ${e.message}"
+                                }
+                        }
+                    } else {
+                        // Sin foto, crear directamente
+                        viewModel.createIncident(incident = incident, photoUrls = emptyList()) {
+                            loading = false
+                            onBack()
+                        }
                     }
                 },
-                enabled = !loading && selectedCategory.isNotBlank() && currentLocation != null,
+                enabled = !loading && !uploadingPhoto && selectedCategory.isNotBlank() && currentLocation != null,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                if (loading) {
+                if (uploadingPhoto) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(18.dp),
                         strokeWidth = 2.dp
                     )
                     Spacer(Modifier.width(8.dp))
+                    Text("Subiendo foto...")
+                } else if (loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Creando reporte...")
+                } else {
+                    Text("Crear Reporte")
                 }
-                Text(if (loading) "Creando..." else "Crear Reporte")
             }
 
             Spacer(Modifier.height(16.dp))

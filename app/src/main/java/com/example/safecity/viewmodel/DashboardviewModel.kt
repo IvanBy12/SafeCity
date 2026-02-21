@@ -189,30 +189,19 @@ class DashboardViewModel(
     // HELPERS DE ESTADO DEL VOTO
     // ========================================
 
-    fun getUserVoteStatus(incident: Incident): String {
-        return incident.userVoteStatus
-    }
-
-    fun hasUserConfirmed(incident: Incident): Boolean {
-        return incident.userVoteStatus == "true"
-    }
-
-    fun hasUserFlagged(incident: Incident): Boolean {
-        return incident.userVoteStatus == "false"
-    }
-
-    fun isOwner(incident: Incident): Boolean {
-        return incident.userId == _uiState.value.currentUserId
-    }
+    fun getUserVoteStatus(incident: Incident): String = incident.userVoteStatus
+    fun hasUserConfirmed(incident: Incident): Boolean = incident.userVoteStatus == "true"
+    fun hasUserFlagged(incident: Incident): Boolean = incident.userVoteStatus == "false"
+    fun isOwner(incident: Incident): Boolean = incident.userId == _uiState.value.currentUserId
 
     // ========================================
-    // CREAR / ELIMINAR / COMENTAR
+    // CREAR INCIDENTE (con fotos opcionales)
     // ========================================
 
-    fun createIncident(incident: Incident, onSuccess: () -> Unit) {
+    fun createIncident(incident: Incident, photoUrls: List<String> = emptyList(), onSuccess: () -> Unit) {
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true) }
-            repository.createIncident(incident)
+            repository.createIncident(incident, photoUrls)
                 .onSuccess {
                     _uiState.update { it.copy(loading = false) }
                     onSuccess()
