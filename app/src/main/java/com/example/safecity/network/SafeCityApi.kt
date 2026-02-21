@@ -23,7 +23,8 @@ data class VoteRequest(
 )
 
 data class CommentRequest(
-    val text: String
+    val text: String,
+    val isAnonymous: Boolean = false
 )
 
 // ==========================================
@@ -49,20 +50,65 @@ data class IncidentResp(
     val address: String?,
     val reporterUid: String,
     val status: String,
-    // ✅ JsonElement para manejar tanto strings como objetos en photos
     val photos: JsonElement?,
-    // Nuevo sistema de validación
     val validationScore: Int?,
     val votedTrue: List<String>?,
     val votedFalse: List<String>?,
     val verified: Boolean?,
     val flaggedFalse: Boolean?,
-    // Compatibilidad
     val confirmationsCount: Int,
     val confirmedBy: List<String>?,
     val commentsCount: Int?,
     val createdAt: String,
     val updatedAt: String
+)
+
+
+/** Respuesta del endpoint GET /incidents/:id con comments */
+data class IncidentDetailResponse(
+    val success: Boolean,
+    val data: IncidentDetailData
+)
+
+data class IncidentDetailData(
+    val _id: String,
+    val categoryGroup: String,
+    val type: String,
+    val title: String,
+    val description: String,
+    val location: LocationResponse,
+    val address: String?,
+    val reporterUid: String?,
+    val status: String,
+    val photos: JsonElement?,
+    val validationScore: Int?,
+    val votedTrue: List<String>?,
+    val votedFalse: List<String>?,
+    val verified: Boolean?,
+    val flaggedFalse: Boolean?,
+    val confirmationsCount: Int?,
+    val confirmedBy: List<String>?,
+    val commentsCount: Int?,
+    val createdAt: String,
+    val updatedAt: String,
+    val comments: List<CommentResp>? = emptyList(),
+    val votes: JsonElement? = null
+)
+
+
+data class CommentResp(
+    val _id: String,
+    val incidentId: String? = null,
+    val authorUid: String? = null,
+    val isAnonymous: Boolean? = false,
+    val text: String,
+    val createdAt: String
+)
+
+data class SimpleResponse(
+    val success: Boolean,
+    val message: String? = null,
+    val error: String? = null
 )
 
 data class LocationResponse(
@@ -116,12 +162,12 @@ interface SafeCityApi {
         @Header("Authorization") auth: String
     ): StatsResponse
 
+    /** Detalle de incidente CON comentarios */
     @GET("incidents/{id}")
     suspend fun getIncidentDetail(
         @Header("Authorization") auth: String,
         @Path("id") id: String
-    ): IncidentResp
-
+    ): IncidentDetailResponse
     @POST("incidents")
     suspend fun createIncident(
         @Header("Authorization") auth: String,
@@ -158,19 +204,14 @@ interface SafeCityApi {
         @Path("id") id: String
     ): VoteResponse
 
-    @POST("incidents/{id}/votes")
-    suspend fun voteIncident(
-        @Header("Authorization") auth: String,
-        @Path("id") id: String,
-        @Body vote: VoteRequest
-    ): IncidentResp
+    /** Agregar comentario */
 
     @POST("incidents/{id}/comments")
     suspend fun addComment(
         @Header("Authorization") auth: String,
         @Path("id") id: String,
         @Body comment: CommentRequest
-    ): IncidentResp
+    ): SimpleResponse
 
     @DELETE("incidents/{id}")
     suspend fun deleteIncident(
