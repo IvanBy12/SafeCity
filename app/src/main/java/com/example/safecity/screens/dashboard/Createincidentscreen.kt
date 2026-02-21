@@ -49,7 +49,11 @@ import java.util.*
 @Composable
 fun CreateIncidentScreen(
     onBack: () -> Unit,
-    viewModel: DashboardViewModel = viewModel()
+    // ─── CAMBIO CLAVE ────────────────────────────────────────────────────────
+    // Mismo factory que en DashboardScreen para reutilizar la misma instancia
+    // del ViewModel (Compose los comparte dentro del mismo NavBackStackEntry scope).
+    // ─────────────────────────────────────────────────────────────────────────
+    viewModel: DashboardViewModel = viewModel(factory = DashboardViewModel.Factory)
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()

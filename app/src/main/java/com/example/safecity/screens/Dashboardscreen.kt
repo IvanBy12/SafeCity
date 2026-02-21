@@ -34,7 +34,12 @@ fun DashboardScreen(
     onNavigateToCreateIncident: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToIncidentDetail: (String) -> Unit = {},
-    viewModel: DashboardViewModel = viewModel()
+    // ─── CAMBIO CLAVE ────────────────────────────────────────────────────────
+    // Se pasa DashboardViewModel.Factory para que Compose pueda construir
+    // correctamente un AndroidViewModel que necesita Application en el constructor.
+    // Sin el factory la app crashea con "Cannot create instance of DashboardViewModel".
+    // ─────────────────────────────────────────────────────────────────────────
+    viewModel: DashboardViewModel = viewModel(factory = DashboardViewModel.Factory)
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
