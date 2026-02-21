@@ -1,7 +1,9 @@
 package com.example.safecity.screens.detail
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -9,11 +11,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.example.safecity.models.Incident
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -97,28 +104,67 @@ private fun IncidentDetailContent(
     onVoteFalse: () -> Unit,
     onRemoveVote: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        val markerPosition = LatLng(incident.location.latitude, incident.location.longitude)
-        val cameraPositionState = rememberCameraPositionState {
-            position = CameraPosition.fromLatLngZoom(markerPosition, 15f)
-        }
+    var showFullScreenPhoto by remember { mutableStateOf(false) }
 
-        Box(Modifier.fillMaxWidth().height(200.dp)) {
-            GoogleMap(
-                modifier = Modifier.fillMaxSize(),
-                cameraPositionState = cameraPositionState,
-                uiSettings = MapUiSettings(zoomControlsEnabled = false, scrollGesturesEnabled = false, zoomGesturesEnabled = false)
-            ) { Marker(state = MarkerState(position = markerPosition), title = incident.category) }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+
+        // ========================================
+        // FOTO DEL INCIDENTE (si existe)
+        // ========================================
+        if (!incident.imageUrl.isNullOrBlank()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(250.dp)
+                    .clickable { showFullScreenPhoto = true }
+            ) {
+                AsyncImage(
+                    model = incident.imageUrl,
+                    contentDescription = "Foto del incidente",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+
+                // Indicador de "toca para ampliar"
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp),
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.ZoomIn, null, Modifier.size(16.dp))
+                        Text("Ampliar", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+        } else {
+            // Mapa si no hay foto
+            val markerPosition = LatLng(incident.location.latitude, incident.location.longitude)
+            val cameraPositionState = rememberCameraPositionState {
+                position = CameraPosition.fromLatLngZoom(markerPosition, 15f)
+            }
+            Box(Modifier.fillMaxWidth().height(200.dp)) {
+                GoogleMap(
+                    modifier = Modifier.fillMaxSize(),
+                    cameraPositionState = cameraPositionState,
+                    uiSettings = MapUiSettings(zoomControlsEnabled = false, scrollGesturesEnabled = false, zoomGesturesEnabled = false)
+                ) { Marker(state = MarkerState(position = markerPosition), title = incident.category) }
+            }
         }
 
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            // Header con badge
+            // Header
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
                     Text(incident.category, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     Text(incident.type.name.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 }
-
                 when {
                     incident.flaggedFalse -> {
                         Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.medium) {
@@ -141,58 +187,71 @@ private fun IncidentDetailContent(
 
             Divider()
 
+            // Descripción
             if (incident.description.isNotBlank()) {
                 DetailSection(Icons.Filled.Description, "Descripción") {
                     Text(incident.description, style = MaterialTheme.typography.bodyLarge)
                 }
             }
 
+            // Ubicación
             DetailSection(Icons.Filled.LocationOn, "Ubicación") {
                 Text(incident.address.ifBlank { "Sin dirección" }, style = MaterialTheme.typography.bodyMedium)
             }
 
+            // Fecha
             DetailSection(Icons.Filled.AccessTime, "Fecha") {
                 Text(formatTimestamp(incident.timestamp), style = MaterialTheme.typography.bodyMedium)
+            }
+
+            // Si hay foto, mostrar también mini-mapa
+            if (!incident.imageUrl.isNullOrBlank()) {
+                val markerPosition = LatLng(incident.location.latitude, incident.location.longitude)
+                val cameraPositionState = rememberCameraPositionState {
+                    position = CameraPosition.fromLatLngZoom(markerPosition, 15f)
+                }
+                Text("Ubicación en mapa", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(150.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                ) {
+                    GoogleMap(
+                        modifier = Modifier.fillMaxSize(),
+                        cameraPositionState = cameraPositionState,
+                        uiSettings = MapUiSettings(zoomControlsEnabled = false, scrollGesturesEnabled = false, zoomGesturesEnabled = false)
+                    ) { Marker(state = MarkerState(position = markerPosition), title = incident.category) }
+                }
             }
 
             Divider()
 
             // ========================================
-            // SECCIÓN DE VALIDACIÓN COMUNITARIA
+            // VALIDACIÓN COMUNITARIA
             // ========================================
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Filled.HowToVote, null, tint = MaterialTheme.colorScheme.primary)
                         Text("Validación comunitaria", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }
 
-                    // Score visual
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Filled.ThumbUp, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(28.dp))
                             Text("${incident.votedTrueCount}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
                             Text("Confirman", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             val scoreColor = when {
                                 incident.validationScore >= 3 -> Color(0xFF4CAF50)
                                 incident.validationScore <= -3 -> MaterialTheme.colorScheme.error
                                 else -> MaterialTheme.colorScheme.onSurface
                             }
-                            Text(
-                                "${if (incident.validationScore > 0) "+" else ""}${incident.validationScore}",
-                                style = MaterialTheme.typography.displaySmall,
-                                fontWeight = FontWeight.Bold,
-                                color = scoreColor
-                            )
+                            Text("${if (incident.validationScore > 0) "+" else ""}${incident.validationScore}", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = scoreColor)
                             Text("Score", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Filled.ThumbDown, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(28.dp))
                             Text("${incident.votedFalseCount}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
@@ -252,6 +311,39 @@ private fun IncidentDetailContent(
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // ========================================
+    // DIÁLOGO FOTO PANTALLA COMPLETA
+    // ========================================
+    if (showFullScreenPhoto && !incident.imageUrl.isNullOrBlank()) {
+        Dialog(
+            onDismissRequest = { showFullScreenPhoto = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable { showFullScreenPhoto = false },
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = incident.imageUrl,
+                    contentDescription = "Foto del incidente",
+                    modifier = Modifier.fillMaxWidth(),
+                    contentScale = ContentScale.Fit
+                )
+
+                IconButton(
+                    onClick = { showFullScreenPhoto = false },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+                ) {
+                    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)) {
+                        Icon(Icons.Filled.Close, "Cerrar", Modifier.padding(8.dp))
                     }
                 }
             }
