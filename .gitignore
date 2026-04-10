@@ -1,0 +1,29 @@
+# Gradle
+.gradle/
+build/
+
+# Local config (no subir configuraciones locales)
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+
+# Native build
+.externalNativeBuild/
+.cxx/
+
+# Captures
+captures/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+.gradle-user/
+
+backend-changes/
+
+gradle/
