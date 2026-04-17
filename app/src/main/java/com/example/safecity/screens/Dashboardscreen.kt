@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -18,8 +19,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.safecity.models.IncidentType
 import com.example.safecity.viewmodel.DashboardViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.PermissionState
 import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -54,19 +57,19 @@ fun DashboardScreen(
     // ─── Permisos requeridos ──────────────────────────────────────────────
     // POST_NOTIFICATIONS es un permiso de runtime a partir de Android 13 (API 33).
     // Accompanist lo trata como "concedido" automáticamente en versiones anteriores.
-    val requiredPermissions = remember {
-        buildList {
-            add(Manifest.permission.ACCESS_FINE_LOCATION)
-            add(Manifest.permission.ACCESS_COARSE_LOCATION)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-    }
-
     val locationPermissions = rememberMultiplePermissionsState(
-        permissions = requiredPermissions
+        permissions = listOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
     )
+
+    val notificationPermissionState =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            null
+        }
 
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(
@@ -78,6 +81,19 @@ fun DashboardScreen(
         .filter { it.permission == Manifest.permission.ACCESS_FINE_LOCATION ||
                   it.permission == Manifest.permission.ACCESS_COARSE_LOCATION }
         .any { it.status.isGranted }
+
+    val notificationGranted = notificationPermissionState?.status?.isGranted ?: true
+    var notificationPromptTriggered by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(notificationPermissionState, notificationGranted) {
+        if (notificationPermissionState != null &&
+            !notificationGranted &&
+            !notificationPromptTriggered
+        ) {
+            notificationPromptTriggered = true
+            notificationPermissionState.launchPermissionRequest()
+        }
+    }
 
     // ─── Ubicación inicial: mueve la cámara la primera vez ───────────────
     LaunchedEffect(locationGranted) {
@@ -201,32 +217,43 @@ fun DashboardScreen(
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
                 locationGranted -> {
-                    GoogleMap(
-                        modifier = Modifier.fillMaxSize(),
-                        cameraPositionState = cameraPositionState,
-                        properties = MapProperties(isMyLocationEnabled = locationGranted),
-                        uiSettings = MapUiSettings(
-                            zoomControlsEnabled = false,
-                            myLocationButtonEnabled = false
-                        )
-                    ) {
-                        uiState.filteredIncidents.forEach { incident ->
-                            Marker(
-                                state = MarkerState(
-                                    position = LatLng(
-                                        incident.location.latitude,
-                                        incident.location.longitude
-                                    )
-                                ),
-                                title = incident.category,
-                                snippet = incident.description,
-                                icon = BitmapDescriptorFactory.defaultMarker(
-                                    if (incident.type == IncidentType.SEGURIDAD)
-                                        BitmapDescriptorFactory.HUE_RED
-                                    else
-                                        BitmapDescriptorFactory.HUE_BLUE
-                                ),
-                                onClick = { viewModel.selectIncident(incident); true }
+                    Box(Modifier.fillMaxSize()) {
+                        GoogleMap(
+                            modifier = Modifier.fillMaxSize(),
+                            cameraPositionState = cameraPositionState,
+                            properties = MapProperties(isMyLocationEnabled = locationGranted),
+                            uiSettings = MapUiSettings(
+                                zoomControlsEnabled = false,
+                                myLocationButtonEnabled = false
+                            )
+                        ) {
+                            uiState.filteredIncidents.forEach { incident ->
+                                Marker(
+                                    state = MarkerState(
+                                        position = LatLng(
+                                            incident.location.latitude,
+                                            incident.location.longitude
+                                        )
+                                    ),
+                                    title = incident.category,
+                                    snippet = incident.description,
+                                    icon = BitmapDescriptorFactory.defaultMarker(
+                                        if (incident.type == IncidentType.SEGURIDAD)
+                                            BitmapDescriptorFactory.HUE_RED
+                                        else
+                                            BitmapDescriptorFactory.HUE_BLUE
+                                    ),
+                                    onClick = { viewModel.selectIncident(incident); true }
+                                )
+                            }
+                        }
+
+                        if (!notificationGranted) {
+                            NotificationPermissionCard(
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(horizontal = 12.dp, vertical = 16.dp),
+                                permissionState = notificationPermissionState
                             )
                         }
                     }
@@ -411,6 +438,34 @@ fun PermissionRequestScreen(
                     Spacer(Modifier.width(8.dp))
                     Text("Conceder permisos")
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+private fun NotificationPermissionCard(
+    modifier: Modifier = Modifier,
+    permissionState: PermissionState?
+) {
+    if (permissionState == null) return
+
+    ElevatedCard(modifier = modifier) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                "Activa las notificaciones",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                "Android necesita este permiso para mostrarte alertas cuando un reporte cercano sea verificado.",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Button(onClick = { permissionState.launchPermissionRequest() }) {
+                Text("Permitir notificaciones")
             }
         }
     }
