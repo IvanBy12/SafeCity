@@ -338,13 +338,13 @@ class IncidentRepository(
                 photos = allPhotos,
                 isAnonymous = incident.isAnonymous
             )
-            val response = api.createIncident("Bearer $token", request)
-            val createdIncident = response.toIncident()
+            val wrapper = api.createIncident("Bearer $token", request)
+            val createdIncident = wrapper.data.toIncident()
             mutateIncidents { current ->
                 listOf(createdIncident) + current.filterNot { it.id == createdIncident.id }
             }
             scheduleConsistencyRefresh()
-            Result.success(response._id)
+            Result.success(wrapper.data._id)
         } catch (e: HttpException) {
             val details = buildHttpErrorDetails(flow = "createIncident", error = e)
             Log.e(TAG, details)

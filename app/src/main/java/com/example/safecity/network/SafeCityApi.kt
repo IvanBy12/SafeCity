@@ -91,6 +91,11 @@ data class IncidentResp(
     val daysUntilClose: Int? = null     // ← REQ 2: días hasta cierre automático
 )
 
+data class CreateIncidentWrapperResponse(
+    val success: Boolean,
+    val data: IncidentResp
+)
+
 data class IncidentDetailResponse(
     val success: Boolean,
     val data: IncidentDetailData,
@@ -299,7 +304,7 @@ interface SafeCityApi {
     suspend fun createIncident(
         @Header("Authorization") auth: String,
         @Body request: CreateIncidentReq
-    ): IncidentResp
+    ): CreateIncidentWrapperResponse
 
     // REQ 2: edición dentro de plazo
     @PATCH("incidents/{id}")

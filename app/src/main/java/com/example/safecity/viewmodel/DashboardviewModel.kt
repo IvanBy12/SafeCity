@@ -303,7 +303,8 @@ class DashboardViewModel(
     fun createIncident(
         incident: Incident,
         photoUrls: List<String> = emptyList(),
-        onSuccess: () -> Unit
+        onSuccess: () -> Unit,
+        onFailure: (String) -> Unit = {}
     ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(loading = true)
@@ -314,6 +315,7 @@ class DashboardViewModel(
                 }
                 .onFailure { e ->
                     _uiState.value = _uiState.value.copy(error = e.message, loading = false)
+                    onFailure(e.message ?: "Error desconocido")
                 }
         }
     }

@@ -389,9 +389,12 @@ fun CreateIncidentScreen(
                             storageRepository.uploadIncidentPhoto(context, photoUri!!)
                                 .onSuccess { downloadUrl ->
                                     uploadingPhoto = false
-                                    viewModel.createIncident(incident, listOf(downloadUrl)) {
-                                        loading = false; onBack()
-                                    }
+                                    viewModel.createIncident(
+                                        incident = incident,
+                                        photoUrls = listOf(downloadUrl),
+                                        onSuccess = { loading = false; onBack() },
+                                        onFailure = { msg -> loading = false; errorMsg = msg }
+                                    )
                                 }
                                 .onFailure { e ->
                                     uploadingPhoto = false
@@ -400,9 +403,12 @@ fun CreateIncidentScreen(
                                 }
                         }
                     } else {
-                        viewModel.createIncident(incident, emptyList()) {
-                            loading = false; onBack()
-                        }
+                        viewModel.createIncident(
+                            incident = incident,
+                            photoUrls = emptyList(),
+                            onSuccess = { loading = false; onBack() },
+                            onFailure = { msg -> loading = false; errorMsg = msg }
+                        )
                     }
                 },
                 enabled  = !loading && !uploadingPhoto
